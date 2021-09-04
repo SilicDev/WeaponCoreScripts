@@ -1,0 +1,2 @@
+This is a collection of my Space Engineers IngameScripts. Most of them are only getting bugfixes at this point.
+Mind that I personally don't use the Malware-SDK Program Wrapper so using statements on top of the files might not be correct.
