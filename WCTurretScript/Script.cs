@@ -588,7 +588,8 @@ namespace WCTurretScript
                                 IMyTerminalBlock w = StaticWeapons[sequenceTimerWC];
                                 if(api.IsWeaponReadyToFire(w,0,true,true)&&Timer!=null&&Timer.IsWorking&&!(Timer.IsCountingDown))
                                     Timer.Trigger();
-                                api.FireWeaponOnce(w,false);
+                                api.ToggleWeaponFire(w,true,false);
+                                api.ToggleWeaponFire(w,false,false);
                                 offsetTimer = offset;
                                 sequenceTimerWC++;
                                 if(sequenceTimerWC >=StaticWeapons.Count)
