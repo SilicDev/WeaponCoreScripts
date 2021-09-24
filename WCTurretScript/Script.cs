@@ -27,7 +27,7 @@ namespace WCTurretScript
         }
         //candidates =targets.Where(x => x.distance <=engageDist)
         //candidates = candidates.OrderBy(c => c.offenseRating)
-        public const string VERSION = "1.16.0";
+        public const string VERSION = "1.16.1";
         public const string GeneralIniTag = "General Config";
         public const string GroupNameKey = "Turret Group name tag";
         public const string DesignatorNameKey = "Designator Turret name tag (Vanilla only)";
@@ -391,7 +391,7 @@ namespace WCTurretScript
                                 return;
                             targetpos=(Vector3D)targetposraw;
                         }
-                    }
+                    });
                 }
                 if(StaticVanilla.Count!=0)
                     StaticVanilla.ForEach(w=>middle=middle+Vector3D.Multiply((w.GetPosition()-middle),0.5));
@@ -508,6 +508,7 @@ namespace WCTurretScript
                     Vector3D middle =targetLead.GetPosition();
                     if(StaticWeapons.Count!=0)
                         StaticWeapons.ForEach(w=>{middle=middle+Vector3D.Multiply((w.GetPosition()-middle),0.5);
+                            api.ToggleWeaponFire(w,false,false);
                             MyDetectedEntityInfo? info = api.GetWeaponTarget(Designator);
                             if (info.HasValue && !(info.Value.IsEmpty())){
                                 var targetposraw = api.GetPredictedTargetPosition(w,info.Value.EntityId,0);
@@ -588,7 +589,7 @@ namespace WCTurretScript
                                 IMyTerminalBlock w = StaticWeapons[sequenceTimerWC];
                                 if(api.IsWeaponReadyToFire(w,0,true,true)&&Timer!=null&&Timer.IsWorking&&!(Timer.IsCountingDown))
                                     Timer.Trigger();
-                                api.FireWeaponOnce(w,false);
+                                api.ToggleWeaponFire(w,true,false);
                                 offsetTimer = offset;
                                 sequenceTimerWC++;
                                 if(sequenceTimerWC >=StaticWeapons.Count)
