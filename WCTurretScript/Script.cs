@@ -590,6 +590,10 @@ namespace WCTurretScript
                                 if(api.IsWeaponReadyToFire(w,0,true,true)&&Timer!=null&&Timer.IsWorking&&!(Timer.IsCountingDown))
                                     Timer.Trigger();
                                 api.ToggleWeaponFire(w,true,false);
+<<<<<<< HEAD
+=======
+                                api.ToggleWeaponFire(w,false,false);
+>>>>>>> 14e860d487d0e5c1d5669e8032719847910c71d6
                                 offsetTimer = offset;
                                 sequenceTimerWC++;
                                 if(sequenceTimerWC >=StaticWeapons.Count)
