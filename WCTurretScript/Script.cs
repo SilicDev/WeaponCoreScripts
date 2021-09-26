@@ -158,7 +158,7 @@ namespace WCTurretScript
             }else{
                 if(runCount>=waitCycles){
                     turretGroups.Clear();
-                    GridTerminalSystem.GetBlockGroups(turretGroups,g=>g.Name.Contains("Turret Group"));
+                    GridTerminalSystem.GetBlockGroups(turretGroups,g=>g.Name.Contains(GroupNameTag));
                     turretGroups.ForEach(g=>{
                         Turret newTurret = Turret.AttemptCreateFromGroup(g);
                         if(newTurret!=null)
