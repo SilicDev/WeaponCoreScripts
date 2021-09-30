@@ -27,7 +27,7 @@ namespace WCTurretScript
         }
         //candidates =targets.Where(x => x.distance <=engageDist)
         //candidates = candidates.OrderBy(c => c.offenseRating)
-        public const string VERSION = "1.16.1";
+        public const string VERSION = "1.16.2";
         public const string GeneralIniTag = "General Config";
         public const string GroupNameKey = "Turret Group name tag";
         public const string DesignatorNameKey = "Designator Turret name tag (Vanilla only)";
@@ -312,7 +312,16 @@ namespace WCTurretScript
                 foreach (IMyMotorStator e in Elevations){
                     getElevationBlocks(blocks,e);
                 }
-                getDesignators();
+                blocks.GetBlocksOfType<IMyTerminalBlock>(temp,b=>b.CustomName.Contains(DesignatorNameTag));
+                temp.Sort((lhs, rhs) => ((lhs.Position - Azimuth.Position).Length() - (rhs.Position - Azimuth.Position).Length()));
+                var tempDes = temp[0]
+                if(tempDes is IMyLargeTurretBase || api.HasCoreWeapon(tempDes))
+                    if(tempDes.IsWorking){
+                        Designator = tempDes;
+                    }
+                    else {
+                        getDesignators();
+                    }
                 blocks.GetBlocksOfType<IMyTimerBlock>(temp,b=>b.CustomName.Contains(TimerNameTag));
                 if(temp.Count!=0)
                     this.Timer = (IMyTimerBlock)temp[0];
@@ -330,7 +339,7 @@ namespace WCTurretScript
                 designatorWcCandidates = WC_DIRECTORS.Where(d => {
                     long? id = api.GetWeaponTarget(d, 0)?.EntityId;
                     if (id != null) {
-                        return api.IsTargetAligned(d, (long)id, 0) && ((IMyFunctionalBlock)d).Enabled;
+                        return api.IsTargetAligned(d, (long)id, 0) && ((IMyFunctionalBlock)d).IsWorking;
                     } else {
                         return false;
                     }
@@ -343,7 +352,7 @@ namespace WCTurretScript
                     designatorCandidates = DIRECTORS.Where(d => {
                         long? id = d.GetTargetedEntity().EntityId;
                         if (id != null) {
-                            return d.IsAimed;
+                            return d.IsWorking;
                         } else {
                             return false;
                         }
@@ -662,8 +671,8 @@ namespace WCTurretScript
         /*
          * WcApi helper class
          * relevant docs: https://steamcommunity.com/sharedfiles/filedetails/?id=2178802013
-         *      https://github.com/sstixrud/WeaponCore/blob/master/Data/Scripts/WeaponCore/Api/WeaponCorePbApi.cs
-         *      https://github.com/sstixrud/WeaponCore/blob/master/Data/Scripts/WeaponCore/Api/ApiBackend.cs
+         *      https://github.com/sstixrud/WeaponCore/blob/master/Data/Scripts/CoreSystems/Api/CoreSystemsPbApi.cs
+         *      https://github.com/sstixrud/WeaponCore/blob/master/Data/Scripts/CoreSystems/Api/ApiBackend.cs
          */
         public class WcPbApi
         {
