@@ -17,7 +17,7 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 
-namespace WCTurretScript
+namespace AutofireScript
 {
     public class Program : MyGridProgram
     {
@@ -54,7 +54,7 @@ namespace WCTurretScript
         public void Main(string argument, UpdateType updateSource)
         {
             EchoString.Clear();
-                                ParseIni();
+            ParseIni();
             api = new WcPbApi();
             try{
                 api.Activate(Me);
@@ -120,6 +120,7 @@ namespace WCTurretScript
             private int shootingTimer = 0;
             private int shootingDelay = 10;
             private string Name;
+            private static bool shootUntilEmpty = false;
 
             private WeaponGroup(List<IMyTerminalBlock> weapons, string _Name){
                 Weapons.AddRange(weapons);
@@ -135,11 +136,17 @@ namespace WCTurretScript
             }
 
             public void tick(){
+                Weapons.ForEach(w => api.ToggleWeaponFire(w,false,false));
                 if(shootingTimer>=shootingDelay){
                     if(sequenceTimer>=Weapons.Count)
                         sequenceTimer=0;
-                    api.FireWeaponOnce(Weapons[sequenceTimer]);
-                    sequenceTimer++;
+                    api.ToggleWeaponFire(Weapons[sequenceTimer],true,false);
+                    if(!shootUntilEmpty)
+                        sequenceTimer++;
+                    else{
+                        if(!api.IsWeaponReadyToFire(Weapons[sequenceTimer],0,true,false))
+                            sequenceTimer++;
+                    }
                     shootingTimer = 0;
                 }
                 shootingTimer++;
@@ -147,10 +154,12 @@ namespace WCTurretScript
             
             public void ParseGroupIni(){
                 shootingDelay = generalIni.Get(Name,"Time between Shots").ToInt32(shootingDelay);
+                shootUntilEmpty = generalIni.Get(Name,"Shoot until empty").ToBoolean(shootUntilEmpty);
             }
 
             public void WriteGroupIni(){
                 generalIni.Set(Name,"Time between Shots",shootingDelay);
+                generalIni.Set(Name,"Shoot until empty",shootUntilEmpty);
             }
         }
 
@@ -160,6 +169,8 @@ namespace WCTurretScript
             private Func<long, int, MyDetectedEntityInfo> _getAiFocus;
             private Func<IMyTerminalBlock, int, MyDetectedEntityInfo> _getWeaponTarget;
             private Action<IMyTerminalBlock, bool, int> _fireWeaponOnce;
+            private Action<IMyTerminalBlock, bool, bool, int> _toggleWeaponFire;
+            private Func<IMyTerminalBlock, int, bool, bool, bool> _isWeaponReadyToFire;
             private Func<long, bool> _hasGridAi;
             private Func<IMyTerminalBlock, bool> _hasCoreWeapon;
 
@@ -178,6 +189,8 @@ namespace WCTurretScript
                 AssignMethod(delegates, "GetAiFocus", ref _getAiFocus);
                 AssignMethod(delegates, "GetWeaponTarget", ref _getWeaponTarget);
                 AssignMethod(delegates, "FireWeaponOnce", ref _fireWeaponOnce);
+                AssignMethod(delegates, "ToggleWeaponFire", ref _toggleWeaponFire);
+                AssignMethod(delegates, "IsWeaponReadyToFire", ref _isWeaponReadyToFire);
                 AssignMethod(delegates, "HasGridAi", ref _hasGridAi);
                 AssignMethod(delegates, "HasCoreWeapon", ref _hasCoreWeapon);
                 return true;
@@ -204,6 +217,11 @@ namespace WCTurretScript
                 _getWeaponTarget?.Invoke(weapon, weaponId) ?? null;
             public void FireWeaponOnce(IMyTerminalBlock weapon, bool allWeapons = true, int weaponId = 0) =>
                 _fireWeaponOnce?.Invoke(weapon, allWeapons, weaponId);
+            public void ToggleWeaponFire(IMyTerminalBlock weapon, bool on, bool allWeapons, int weaponId = 0) =>
+                _toggleWeaponFire?.Invoke(weapon, on, allWeapons, weaponId);
+            public bool IsWeaponReadyToFire(IMyTerminalBlock weapon, int weaponId = 0, bool anyWeaponReady = true,
+                bool shootReady = false) =>
+                _isWeaponReadyToFire?.Invoke(weapon, weaponId, anyWeaponReady, shootReady) ?? false;
             public bool HasGridAi(long entity) => _hasGridAi?.Invoke(entity) ?? false;
             public bool HasCoreWeapon(IMyTerminalBlock weapon) => _hasCoreWeapon?.Invoke(weapon) ?? false;
         }
