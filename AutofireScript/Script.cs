@@ -120,7 +120,7 @@ namespace AutofireScript
             private int shootingTimer = 0;
             private int shootingDelay = 10;
             private string Name;
-            private static bool shootUntilEmpty = false;
+            private bool shootUntilEmpty = false;
 
             private WeaponGroup(List<IMyTerminalBlock> weapons, string _Name){
                 Weapons.AddRange(weapons);
