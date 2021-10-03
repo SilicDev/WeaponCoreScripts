@@ -135,7 +135,7 @@ namespace WCTurretScript
                         {
                             if (item!=null){
                                 MyDetectedEntityInfo? info = api.GetWeaponTarget(item);
-                                if (item!=null&&info.HasValue&&!(info.Value.IsEmpty())&&api.IsTargetAligned(item,info.Value.EntityId,0))
+                                if (info!=null&&info.HasValue&&!(info.Value.IsEmpty())&&api.IsTargetAligned(item,info.Value.EntityId,0))
                                     {
                                         WC_DIRECTOR = item;
                                         if(item is IMyLargeTurretBase)
@@ -314,8 +314,10 @@ namespace WCTurretScript
                 }
                 blocks.GetBlocksOfType<IMyTerminalBlock>(temp,b=>b.CustomName.Contains(DesignatorNameTag));
                 temp.Sort((lhs, rhs) => ((lhs.Position - Azimuth.Position).Length() - (rhs.Position - Azimuth.Position).Length()));
-                var tempDes = temp[0]
-                if(tempDes is IMyLargeTurretBase || api.HasCoreWeapon(tempDes))
+                IMyTerminalBlock tempDes = null;
+                if(temp.Count!=0)
+                    tempDes = temp[0];
+                if(tempDes != null&&(tempDes is IMyLargeTurretBase || api.HasCoreWeapon(tempDes)))
                     if(tempDes.IsWorking){
                         Designator = tempDes;
                     }
@@ -613,6 +615,7 @@ namespace WCTurretScript
             }
 
             public void MoveToRest(){
+                StaticWeapons.ForEach(w=>api.ToggleWeaponFire(w,false,false));
                 sequenceTimerWC = 0;
                 sequenceTimerV = 0;
                 offsetTimer = 0;
