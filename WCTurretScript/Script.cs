@@ -519,7 +519,6 @@ namespace WCTurretScript
                     Vector3D middle =targetLead.GetPosition();
                     if(StaticWeapons.Count!=0)
                         StaticWeapons.ForEach(w=>{middle=middle+Vector3D.Multiply((w.GetPosition()-middle),0.5);
-                            api.ToggleWeaponFire(w,false,false);
                             MyDetectedEntityInfo? info = api.GetWeaponTarget(Designator);
                             if (info.HasValue && !(info.Value.IsEmpty())){
                                 var targetposraw = api.GetPredictedTargetPosition(w,info.Value.EntityId,0);
@@ -600,7 +599,7 @@ namespace WCTurretScript
                                 IMyTerminalBlock w = StaticWeapons[sequenceTimerWC];
                                 if(api.IsWeaponReadyToFire(w,0,true,true)&&Timer!=null&&Timer.IsWorking&&!(Timer.IsCountingDown))
                                     Timer.Trigger();
-                                api.ToggleWeaponFire(w,true,false);
+                                api.FireWeaponOnce(w);
                                 offsetTimer = offset;
                                 sequenceTimerWC++;
                                 if(sequenceTimerWC >=StaticWeapons.Count)

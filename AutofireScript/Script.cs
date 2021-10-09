@@ -136,11 +136,10 @@ namespace AutofireScript
             }
 
             public void tick(){
-                Weapons.ForEach(w => api.ToggleWeaponFire(w,false,false));
                 if(shootingTimer>=shootingDelay){
                     if(sequenceTimer>=Weapons.Count)
                         sequenceTimer=0;
-                    api.ToggleWeaponFire(Weapons[sequenceTimer],true,false);
+                    api.FireWeaponOnce(Weapons[sequenceTimer]);
                     if(!shootUntilEmpty)
                         sequenceTimer++;
                     else{
