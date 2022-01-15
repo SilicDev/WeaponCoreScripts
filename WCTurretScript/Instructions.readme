@@ -1,2 +1,16 @@
-﻿
-/*-----------------DO NOT EDIT BELOW THIS LINE--------------------------------*/
+﻿Installation
+--------------------
+
+You need at least one WeaponCore weapon and a cockpit on your main grid.
+You also should have atleast 1 block turret on your grid.
+A turret should have:
+	- 1 rotor named "Azimuth"
+	- 1 or more rotors on the Azimuth grid named "Elevation"
+	- 1 or more weapons on each Elevation grid
+Additionally you may have:
+	- timers named "Fire"
+	- vanilla turrets named "Designator"
+All of these should be groubed in a block group named "Turret Group"
+
+If the Elevation rotors move in the wrong directions when aiming set the 
+invertElevation config option in the Custom Data to true.

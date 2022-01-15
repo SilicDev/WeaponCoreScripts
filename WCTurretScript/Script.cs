@@ -21,6 +21,7 @@ namespace WCTurretScript
 {
     public class Program : MyGridProgram
     {
+        /*-----------------DO NOT EDIT BELOW THIS LINE--------------------------------*/
         public Program()
         {
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
