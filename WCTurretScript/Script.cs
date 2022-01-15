@@ -27,7 +27,7 @@ namespace WCTurretScript
         }
         //candidates =targets.Where(x => x.distance <=engageDist)
         //candidates = candidates.OrderBy(c => c.offenseRating)
-        public const string VERSION = "1.16.2";
+        public const string VERSION = "1.16.3";
         public const string GeneralIniTag = "General Config";
         public const string GroupNameKey = "Turret Group name tag";
         public const string DesignatorNameKey = "Designator Turret name tag (Vanilla only)";
@@ -315,15 +315,18 @@ namespace WCTurretScript
                 blocks.GetBlocksOfType<IMyTerminalBlock>(temp,b=>b.CustomName.Contains(DesignatorNameTag));
                 temp.Sort((lhs, rhs) => ((lhs.Position - Azimuth.Position).Length() - (rhs.Position - Azimuth.Position).Length()));
                 IMyTerminalBlock tempDes = null;
-                if(temp.Count!=0)
+                if(temp.Count!=0){
                     tempDes = temp[0];
-                if(tempDes != null&&(tempDes is IMyLargeTurretBase || api.HasCoreWeapon(tempDes)))
-                    if(tempDes.IsWorking){
-                        Designator = tempDes;
-                    }
-                    else {
-                        getDesignators();
-                    }
+                    if(tempDes != null&&(tempDes is IMyLargeTurretBase || api.HasCoreWeapon(tempDes)))
+                        if(tempDes.IsWorking){
+                            Designator = tempDes;
+                        }
+                        else {
+                            getDesignators();
+                        }
+                } else {
+                    getDesignators();
+                }
                 blocks.GetBlocksOfType<IMyTimerBlock>(temp,b=>b.CustomName.Contains(TimerNameTag));
                 if(temp.Count!=0)
                     this.Timer = (IMyTimerBlock)temp[0];
@@ -339,9 +342,9 @@ namespace WCTurretScript
             public void getDesignators(){
                 designatorWcCandidates.Clear();
                 designatorWcCandidates = WC_DIRECTORS.Where(d => {
-                    long? id = api.GetWeaponTarget(d, 0)?.EntityId;
-                    if (id != null) {
-                        return api.IsTargetAligned(d, (long)id, 0) && ((IMyFunctionalBlock)d).IsWorking;
+                    MyDetectedEntityInfo? target = api.GetWeaponTarget(d, 0);
+                    if (target != null && target.HasValue && !(target.Value.IsEmpty())) {
+                        return ((IMyFunctionalBlock)d).IsWorking && api.IsTargetAligned(d, target.Value.EntityId, 0);
                     } else {
                         return false;
                     }
