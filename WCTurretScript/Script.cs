@@ -322,6 +322,8 @@ namespace WCTurretScript
                 if(Elevations.Count == 0)
                     return; 
                 MainElevation = Elevations[0];
+                if (MainElevation.CustomName.Contains("#LEFT#"))
+                    invertRot = true;
                 foreach (IMyMotorStator e in Elevations){
                     getElevationBlocks(blocks, e);
                 }
