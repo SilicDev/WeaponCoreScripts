@@ -69,7 +69,7 @@ namespace IngameScript
             {
                 bool inv = Rotor != null && Rotor.WorldMatrix.Up != Up || Rotor.BlockDefinition.SubtypeName.Contains("Hinge");
                 int invFac = inv ? -1 : 1;
-                SetRotorSpeedFromOffset(upperOffset * invFac, 4, maxSpeed);
+                SetRotorSpeedFromOffset(-upperOffset * invFac, 4, maxSpeed);
             }
         }
     }
