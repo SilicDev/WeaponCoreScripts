@@ -36,7 +36,7 @@ namespace IngameScript
             /// Throws an Exception if the WcPbAPI property added by WeaponCore couldn't be found on the block.
             public bool Activate(IMyTerminalBlock pbBlock)
             {
-                var dict = pbBlock.GetProperty("WcPbAPI")?.As<Dictionary<string, Delegate>>().GetValue(pbBlock);
+                var dict = pbBlock.GetProperty("WcPbAPI")?.As<IReadOnlyDictionary<string, Delegate>>().GetValue(pbBlock);
                 if (dict == null) throw new Exception($"WcPbAPI failed to activate");
                 return ApiAssign(dict);
             }
