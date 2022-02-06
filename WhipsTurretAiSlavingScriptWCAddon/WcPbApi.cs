@@ -21,10 +21,11 @@ namespace IngameScript
 {
     public partial class Program
     {
+
         public class WcPbApi
         {
             private Func<IMyTerminalBlock, int, float> _getMaxWeaponRange;
-            private Action<IMyEntity, IDictionary<IMyEntity, float>> _getSortedThreats;
+            private Action<IMyTerminalBlock, IDictionary<MyDetectedEntityInfo, float>> _getSortedThreats;
             private Func<IMyTerminalBlock, bool> _hasCoreWeapon;
             private Func<IMyTerminalBlock, long> _getPlayerController;
             private Func<Sandbox.ModAPI.Ingame.IMyTerminalBlock, int, Matrix> _getWeaponAzimuthMatrix;
@@ -67,7 +68,7 @@ namespace IngameScript
             }
             public float GetMaxWeaponRange(IMyTerminalBlock weapon, int weaponId) =>
                 _getMaxWeaponRange?.Invoke(weapon, weaponId) ?? 0f;
-            public void GetSortedThreats(IMyEntity shooter, IDictionary<IMyEntity, float> collection) =>
+            public void GetSortedThreats(IMyTerminalBlock shooter, IDictionary<MyDetectedEntityInfo, float> collection) =>
                 _getSortedThreats?.Invoke(shooter, collection);
             public bool HasCoreWeapon(IMyTerminalBlock weapon) => _hasCoreWeapon?.Invoke(weapon) ?? false;
             public long GetPlayerController(IMyTerminalBlock weapon) => _getPlayerController?.Invoke(weapon) ?? -1;

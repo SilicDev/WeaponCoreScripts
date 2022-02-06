@@ -31,7 +31,7 @@ namespace IngameScript
         public List<IMyTerminalBlock> Turrets = new List<IMyTerminalBlock>();
         public List<MyDefinitionId> WeaponDefinitions = new List<MyDefinitionId>();
         public List<string> definitionSubIds = new List<string>();
-        Dictionary<IMyEntity, float> dict = new Dictionary<IMyEntity, float>();
+        Dictionary<MyDetectedEntityInfo, float> dict = new Dictionary<MyDetectedEntityInfo, float>();
 
         static MyIni generalIni = new MyIni();
         const string INI_GENERAL_SECTION = "General Parameters";
@@ -56,8 +56,10 @@ namespace IngameScript
             try {
                 api.Activate(Me);
             }
-            catch {
-                Echo("WeaponCore Api is failing! \n Make sure WeaponCore is enabled!"); return;
+            catch(Exception e){
+                Echo("WeaponCore Api is failing! \n Make sure WeaponCore is enabled!");
+                Echo(e.ToString());
+                return;
             }
             if (runCount >= 20)
             {
@@ -73,7 +75,7 @@ namespace IngameScript
                     DesignatorNameTag = generalIni.Get(INI_GENERAL_SECTION, INI_DESIGNATOR_NAME).ToString(DesignatorNameTag);
                 });
                 dict.Clear();
-                api.GetSortedThreats(Me.CubeGrid, dict);
+                api.GetSortedThreats(Me, dict);
                 turretGroups.Clear();
                 GridTerminalSystem.GetBlockGroups(turretGroups, g => g.Name.Contains(AiTurretGroupNameTag));
                 Echo("Managing " + turretGroups.Count + " Slaved Groups\n");
@@ -115,14 +117,14 @@ namespace IngameScript
                                     TARGETPOS1 = Vector3D.Negate(TARGETPOS1);
                                     RayD turretRay = new RayD(ORIGINPOS, TARGETPOS1);
                                     #endregion
-                                    foreach (IMyEntity k in dict.Keys)
+                                    foreach (MyDetectedEntityInfo k in dict.Keys)
                                     {
-                                        if (k != null)
+                                        if (!k.IsEmpty())
                                         {
-                                            IMyEntity target = k;
-                                            if (k.WorldAABB.Intersects(turretRay) < api.GetMaxWeaponRange(designator, 0) && k.WorldAABB.Intersects(turretRay) > 0)
+                                            MyDetectedEntityInfo target = k;
+                                            if (k.BoundingBox.Intersects(turretRay) < api.GetMaxWeaponRange(designator, 0) && k.BoundingBox.Intersects(turretRay) > 0)
                                             {
-                                                convergence = MathHelper.RoundToInt((target.WorldAABB.Center - ORIGINPOS).Length());
+                                                convergence = MathHelper.RoundToInt((target.BoundingBox.Center - ORIGINPOS).Length());
                                                 if (oldConvergence == 0 || convergence < oldConvergence)
                                                     oldConvergence = convergence;
                                             }

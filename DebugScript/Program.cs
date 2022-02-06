@@ -71,9 +71,9 @@ namespace IngameScript
             WeaponDefinitions.Clear();
             api.GetAllCoreTurrets(WeaponDefinitions);
             EchoString.Append("Total Turret Weapons registered: "+WeaponDefinitions.Count+"\n");
-            EchoString.Append("Grid Info:\n");
+            EchoString.Append("\nGrid Info:\n");
             EchoString.Append("-----------------------\n");
-            EchoString.Append("Has GridAi: "+ api.HasGridAi(id));
+            EchoString.Append("Has GridAi: "+ api.HasGridAi(id) + "\n");
             EchoString.Append("GridAi Target Data:\n");
             GetTargetInfo((MyDetectedEntityInfo)api.GetAiFocus(id));
             api.GetSortedThreats(Me,dict);
@@ -83,9 +83,9 @@ namespace IngameScript
             GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(Weapons, b => b.CustomName.ToLower().Contains("[debug]"));
             if(Weapons.Count>0){
                 weaponBlock = Weapons[0];
-                EchoString.Append("Weapon Info:\n");
+                EchoString.Append("\nWeapon Info:\n");
                 EchoString.Append("-----------------------\n");
-                EchoString.Append("Has Core Weapon: "+ api.HasCoreWeapon(weaponBlock));
+                EchoString.Append("Has Core Weapon: "+ api.HasCoreWeapon(weaponBlock) + "\n");
                 temp.Clear();
                 result = api.GetBlockWeaponMap(weaponBlock,temp);
                 EchoString.Append("Muzzles: "+(result?temp.Count:0)+"\n");
@@ -94,6 +94,7 @@ namespace IngameScript
                 GetTargetInfo((MyDetectedEntityInfo)api.GetWeaponTarget(weaponBlock));
                 EchoString.Append("Ready To Fire:"+api.IsWeaponReadyToFire(weaponBlock)+"\n");
                 EchoString.Append("Max Range:"+api.GetMaxWeaponRange(weaponBlock, 0)+"\n");
+                targetTypes.Clear();
                 result = api.GetTurretTargetTypes(weaponBlock,targetTypes);
                 EchoString.Append("Target Types: ");
                 for(int i = 0; i<targetTypes.Count;i++){
@@ -136,10 +137,10 @@ namespace IngameScript
                     #endregion
                     EchoString.Append("Aim Vector: " + TARGETPOS1.ToString() + "\n");
                 }
-                Me.CustomData = "";
-                Me.CustomData = EchoString.ToString();
-                Echo(Me.CustomData);
             }
+            Me.CustomData = "";
+            Me.CustomData = EchoString.ToString();
+            Echo(Me.CustomData);
 
         }
 
