@@ -21,7 +21,7 @@ namespace IngameScript
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
 
-        public const string VERSION = "1.16.4";
+        public const string VERSION = "1.17.0";
 
         public const string GeneralIniTag = "General Config";
         public const string GroupNameKey = "Turret Group name tag";
@@ -30,6 +30,7 @@ namespace IngameScript
         public const string ElevationNameKey = "Elevation rotor name tag";
         public const string TimerNameKey = "Fire Timer name tag";
         public const string WcTargetKey = "Allow Main Target Tracking (Beta)";
+        public const string LOSCheckKey = "Allow Line Of Sight Checking (Performance intensive)";
         public const string waitCyclesKey = "Minor Cycles";
 
         public const string maxSpeedKey = "Maximum turning speed";
@@ -44,6 +45,7 @@ namespace IngameScript
         public static string TimerNameTag = "Fire";
         public static string GroupNameTag = "Turret Group";
         public static bool allowWcTarget = false;
+        public static bool allowLOS = false;
         public static int waitCycles = 500;
 
         public static WcPbAPI api = new WcPbAPI();
@@ -114,7 +116,7 @@ namespace IngameScript
 
                     WC_DIRECTORS.Clear();
                     GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(WC_DIRECTORS,
-                            b => !(definitionSubIds.Contains(b.BlockDefinition.SubtypeName))
+                            b => !definitionSubIds.Contains(b.BlockDefinition.SubtypeName)
                                 && turretDefinitionSubIds.Contains(b.BlockDefinition.SubtypeName));
 
                     turretGroups.Clear();
@@ -127,7 +129,7 @@ namespace IngameScript
                     });
 
                     DIRECTORS.Clear();
-                    GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(DIRECTORS, b => b.CubeGrid == Me.CubeGrid);
+                    GridTerminalSystem.GetBlocksOfType(DIRECTORS, b => b.CubeGrid == Me.CubeGrid);
                     WC_DIRECTORS.ForEach(d =>
                     {
                         if (d is IMyLargeTurretBase)
@@ -142,7 +144,7 @@ namespace IngameScript
                 if (allowWcTarget)
                 {
                     MyDetectedEntityInfo? info = api.GetAiFocus(Me.CubeGrid.EntityId);
-                    if (info.HasValue && !(info.Value.IsEmpty()))
+                    if (info.HasValue && !info.Value.IsEmpty())
                     {
                         targetpos = info.Value.Position;
                         targetOverride = true;
@@ -160,7 +162,7 @@ namespace IngameScript
                             if (item != null)
                             {
                                 MyDetectedEntityInfo? info = api.GetWeaponTarget(item);
-                                if (info != null && info.HasValue && !(info.Value.IsEmpty()) && api.IsTargetAligned(item, info.Value.EntityId, 0))
+                                if (info != null && info.HasValue && !info.Value.IsEmpty() && api.IsTargetAligned(item, info.Value.EntityId, 0))
                                 {
                                     WC_DIRECTOR = item;
                                     if (item is IMyLargeTurretBase)
@@ -172,7 +174,7 @@ namespace IngameScript
                         if (WC_DIRECTOR != null)
                         {
                             MyDetectedEntityInfo? info = api.GetWeaponTarget(WC_DIRECTOR);
-                            if (info.HasValue && !(info.Value.IsEmpty()))
+                            if (info.HasValue && !info.Value.IsEmpty())
                                 turrets.ForEach(t => t.AimAtTarget());
                             else
                                 AttemptVanillaTargeting();
@@ -208,7 +210,7 @@ namespace IngameScript
                 turrets.ForEach(t => t.MoveToRest());
             }
             EchoString.Append("------------------------------------\ndebug area:\n");
-            turrets.ForEach(t => t.debug());
+            turrets.ForEach(t => t.Debug());
             Echo(EchoString.ToString());
         }
 
@@ -265,6 +267,7 @@ namespace IngameScript
             ElevationNameTag = generalIni.Get(GeneralIniTag, ElevationNameKey).ToString(ElevationNameTag);
             TimerNameTag = generalIni.Get(GeneralIniTag, TimerNameKey).ToString(TimerNameTag);
             allowWcTarget = generalIni.Get(GeneralIniTag, WcTargetKey).ToBoolean(allowWcTarget);
+            allowLOS = generalIni.Get(GeneralIniTag, LOSCheckKey).ToBoolean(allowLOS);
             waitCycles = generalIni.Get(GeneralIniTag, waitCyclesKey).ToInt32(waitCycles);
             turrets.ForEach(t => t.ParseTurretIni());
             WriteIni();
@@ -282,6 +285,7 @@ namespace IngameScript
             generalIni.Set(GeneralIniTag, ElevationNameKey, ElevationNameTag);
             generalIni.Set(GeneralIniTag, TimerNameKey, TimerNameTag);
             generalIni.Set(GeneralIniTag, WcTargetKey, allowWcTarget);
+            generalIni.Set(GeneralIniTag, LOSCheckKey, allowLOS);
             generalIni.Set(GeneralIniTag, waitCyclesKey, waitCycles);
             turrets.ForEach(t => t.WriteTurretIni());
             string output = generalIni.ToString();
