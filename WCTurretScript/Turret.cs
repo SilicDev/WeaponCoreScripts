@@ -205,7 +205,7 @@ namespace IngameScript
                 {
                     StaticWeapons.ForEach(w =>
                     {
-                        w.ToggleShoot(false);
+                        //w.ToggleShoot(false);
                         middle += (w.GetPosition() - middle) / 2;
                         targetpos = w.CalculatePredictedTargetPosition(Azimuth.Rotor.CubeGrid.EntityId, targetpos);
                     });
@@ -311,7 +311,7 @@ namespace IngameScript
 
             public void MoveToRest()
             {
-                StaticWeapons.ForEach(w => api.ToggleWeaponFire(w.Weapon, false, false));
+                //StaticWeapons.ForEach(w => api.ToggleWeaponFire(w.Weapon, false, false));
                 sequenceTimer = 0;
                 offsetTimer = 0;
                 resting = true;

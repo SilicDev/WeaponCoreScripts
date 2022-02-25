@@ -43,8 +43,8 @@ namespace IngameScript
             {
                 if(isWC)
                 {
-                    //api.FireWeaponOnce(Weapon, false);
-                    api.ToggleWeaponFire(Weapon, true, false);
+                    api.FireWeaponOnce(Weapon, false);
+                    //api.ToggleWeaponFire(Weapon, true, false);
                 }
                 else
                 {

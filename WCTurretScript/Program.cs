@@ -21,7 +21,7 @@ namespace IngameScript
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
         }
 
-        public const string VERSION = "1.17.0";
+        public const string VERSION = "1.17.1";
 
         public const string GeneralIniTag = "General Config";
         public const string GroupNameKey = "Turret Group name tag";
