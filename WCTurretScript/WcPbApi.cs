@@ -33,7 +33,7 @@ namespace IngameScript
             private Func<IMyTerminalBlock, long> _getPlayerController;
 
             /// <summary>Initializes the API.</summary>
-            /// Throws an Exception if the WcPbAPI property added by WeaponCore couldn't be found on the block.
+            /// <exception cref="Exception">If the WcPbAPI property added by WeaponCore couldn't be found on the block.</exception>
             public bool Activate(IMyTerminalBlock pbBlock)
             {
                 var dict = pbBlock.GetProperty("WcPbAPI")?.As<IReadOnlyDictionary<string, Delegate>>().GetValue(pbBlock);

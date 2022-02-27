@@ -10,16 +10,6 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        #region mdkpreserve
-
-        /*-----------------DO NOT EDIT BELOW THIS LINE--------------------------------*/
-
-        #endregion mdkpreserve
-
-        public Program()
-        {
-            Runtime.UpdateFrequency = UpdateFrequency.Update1;
-        }
 
         public const string VERSION = "1.17.1";
 
@@ -75,6 +65,11 @@ namespace IngameScript
 
         public int runCount = waitCycles;
 
+        public Program()
+        {
+            Runtime.UpdateFrequency = UpdateFrequency.Update1;
+        }
+
         public void Main(string argument, UpdateType updateSource)
         {
             runCount++;
@@ -90,6 +85,17 @@ namespace IngameScript
                 {
                     api.Activate(Me);
                     apiActivated = true;
+                    WeaponDefinitions.Clear();
+                    TurretDefinitions.Clear();
+
+                    api.GetAllCoreStaticLaunchers(WeaponDefinitions);
+                    api.GetAllCoreTurrets(TurretDefinitions);
+
+                    definitionSubIds.Clear();
+                    turretDefinitionSubIds.Clear();
+
+                    WeaponDefinitions.ForEach(d => definitionSubIds.Add(d.SubtypeName));
+                    TurretDefinitions.ForEach(t => turretDefinitionSubIds.Add(t.SubtypeName));
                 }
                 catch
                 {
@@ -102,17 +108,6 @@ namespace IngameScript
             {
                 if (runCount >= waitCycles)
                 {
-                    WeaponDefinitions.Clear();
-                    TurretDefinitions.Clear();
-
-                    api.GetAllCoreStaticLaunchers(WeaponDefinitions);
-                    api.GetAllCoreTurrets(TurretDefinitions);
-
-                    definitionSubIds.Clear();
-                    turretDefinitionSubIds.Clear();
-
-                    WeaponDefinitions.ForEach(d => definitionSubIds.Add(d.SubtypeName));
-                    TurretDefinitions.ForEach(t => turretDefinitionSubIds.Add(t.SubtypeName));
 
                     WC_DIRECTORS.Clear();
                     GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(WC_DIRECTORS,
