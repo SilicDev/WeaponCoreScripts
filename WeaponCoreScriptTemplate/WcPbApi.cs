@@ -1,75 +1,21 @@
-﻿using Sandbox.Game.EntityComponents;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
-using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using VRage;
-using VRage.Collections;
 using VRage.Game;
-using VRage.Game.Components;
-using VRage.Game.GUI.TextPanel;
-using VRage.Game.ModAPI.Ingame;
-using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 
-namespace WeaponCoreScriptTemplate
+namespace IngameScript
 {
-    public class Program : MyGridProgram
+    public partial class Program
     {
-        public Program()
-        {
-            
-        }
-
-        public void Save()
-        {
-            // Called when the program needs to save its state. Use
-            // this method to save your state to the Storage field
-            // or some other means. 
-            // 
-            // This method is optional and can be removed if not
-            // needed.
-        }
-
-        public static WcPbApi api;
-
-        public List<IMyTerminalBlock> StaticWeapons = new List<IMyTerminalBlock>();
-        public List<MyDefinitionId> WeaponDefinitions = new List<MyDefinitionId>();
-        public List<string> definitionSubIds = new List<string>();
-
-        public void Main(string argument, UpdateType updateSource)
-        {
-            api = new WcPbApi();
-            try{
-                api.Activate(Me);
-            }
-            catch (e){
-                Echo("WeaponCore Api is failing! \n Make sure WeaponCore is enabled!"); 
-                Echo(e.StackTrace);
-                return;
-            }
-            StaticWeapons.Clear();
-            WeaponDefinitions.Clear();
-            api.GetAllCoreStaticLaunchers(WeaponDefinitions);
-            definitionSubIds.Clear();
-            WeaponDefinitions.ForEach(d=>definitionSubIds.Add(d.SubtypeName));
-            GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(StaticWeapons,b =>b.CubeGrid == Me.CubeGrid &&definitionSubIds.Contains(b.BlockDefinition.SubtypeName));
-            StaticWeapons.ForEach(b => api.FireWeaponOnce(b));
-        }
-
-        /*
-         * WcPbAPI class. Reference: https://steamcommunity.com/sharedfiles/filedetails/?id=2178802013
-         * It is highly recommended to delete unneeded api methods
-         * Non-API functions:
-         *  Activate(pbBlock)
-         *  ApiAssign(delegates)
-         *  AssignMethod(delegates,name,field)
-         */
+        /// <summary>Implementation of the WeaponCore PB API</summary>
+        ///
+        /// relevant docs: https://steamcommunity.com/sharedfiles/filedetails/?id=2178802013
+        ///     https://github.com/sstixrud/WeaponCore/blob/master/Data/Scripts/CoreSystems/Api/CoreSystemsPbApi.cs
+        ///     https://github.com/sstixrud/WeaponCore/blob/master/Data/Scripts/CoreSystems/Api/ApiBackend.cs
+        ///
         public class WcPbApi
         {
             private Action<ICollection<MyDefinitionId>> _getCoreWeapons;
@@ -101,35 +47,26 @@ namespace WeaponCoreScriptTemplate
             private Func<long, float> _getOptimalDps;
             private Func<IMyTerminalBlock, int, string> _getActiveAmmo;
             private Action<IMyTerminalBlock, int, string> _setActiveAmmo;
-            private Action<Action<Vector3, float>> _registerProjectileAdded;
-            private Action<Action<Vector3, float>> _unRegisterProjectileAdded;
+            private Action<IMyTerminalBlock, int, Action<long, int, ulong, long, Vector3D, bool>> _monitorProjectile;
+            private Action<IMyTerminalBlock, int, Action<long, int, ulong, long, Vector3D, bool>> _unMonitorProjectile;
             private Func<long, float> _getConstructEffectiveDps;
             private Func<IMyTerminalBlock, long> _getPlayerController;
-            private Func<Sandbox.ModAPI.Ingame.IMyTerminalBlock, int, Matrix> _getWeaponAzimuthMatrix;
-            private Func<Sandbox.ModAPI.Ingame.IMyTerminalBlock, int, Matrix> _getWeaponElevationMatrix;
-            private Func<Sandbox.ModAPI.Ingame.IMyTerminalBlock, long, bool, bool, bool> _isTargetValid;
-            private Func<Sandbox.ModAPI.Ingame.IMyTerminalBlock, int, MyTuple<Vector3D, Vector3D>> _getWeaponScope;
-            private Func<Sandbox.ModAPI.Ingame.IMyTerminalBlock, MyTuple<bool, bool>> _isInRange;
-            
-            /*
-             *  Tries to setup the Api if WC is loaded
-             *  @param pbBlock: the block executing this script (WcPbAPI properties are stored in IMyProgrammableBlock)
-             *  @throws Exception: thrown if WC is NOT loaded on function call. This should only be the case if WC broke
-             *      or wasn't included in the world
-             *  @return: ApiAssign()
-             */
+            private Func<IMyTerminalBlock, int, Matrix> _getWeaponAzimuthMatrix;
+            private Func<IMyTerminalBlock, int, Matrix> _getWeaponElevationMatrix;
+            private Func<IMyTerminalBlock, long, bool, bool, bool> _isTargetValid;
+            private Func<IMyTerminalBlock, int, MyTuple<Vector3D, Vector3D>> _getWeaponScope;
+            private Func<IMyTerminalBlock, MyTuple<bool, bool>> _isInRange;
+
+            /// <summary>Initializes the API.</summary>
+            /// <exception cref="Exception">If the WcPbAPI property added by WeaponCore couldn't be found on the block.</exception>
             public bool Activate(IMyTerminalBlock pbBlock)
             {
-                var dict = pbBlock.GetProperty("WcPbAPI")?.As<Dictionary<string, Delegate>>().GetValue(pbBlock);
+                var dict = pbBlock.GetProperty("WcPbAPI")?.As<IReadOnlyDictionary<string, Delegate>>().GetValue(pbBlock);
                 if (dict == null) throw new Exception($"WcPbAPI failed to activate");
                 return ApiAssign(dict);
             }
 
-            /*
-             *  Tries to assign the Api delegates to fields of this class
-             *  @param delegates: read-only dictionary of delegates with string keys
-             *  @return: true unless delegates is null
-             */
+            /// <summary>Assigns WeaponCore's API methods to callable properties.</summary>
             public bool ApiAssign(IReadOnlyDictionary<string, Delegate> delegates)
             {
                 if (delegates == null)
@@ -163,8 +100,8 @@ namespace WeaponCoreScriptTemplate
                 AssignMethod(delegates, "GetOptimalDps", ref _getOptimalDps);
                 AssignMethod(delegates, "GetActiveAmmo", ref _getActiveAmmo);
                 AssignMethod(delegates, "SetActiveAmmo", ref _setActiveAmmo);
-                AssignMethod(delegates, "RegisterProjectileAdded", ref _registerProjectileAdded);
-                AssignMethod(delegates, "UnRegisterProjectileAdded", ref _unRegisterProjectileAdded);
+                AssignMethod(delegates, "MonitorProjectile", ref _monitorProjectile);
+                AssignMethod(delegates, "UnMonitorProjectile", ref _unMonitorProjectile);
                 AssignMethod(delegates, "GetConstructEffectiveDps", ref _getConstructEffectiveDps);
                 AssignMethod(delegates, "GetPlayerController", ref _getPlayerController);
                 AssignMethod(delegates, "GetWeaponAzimuthMatrix", ref _getWeaponAzimuthMatrix);
@@ -175,13 +112,7 @@ namespace WeaponCoreScriptTemplate
                 return true;
             }
 
-            /*
-             *  Tries to assign delegate methods to fields while checking for identical types.
-             *  @param delegates: read-only dictionary of delegates with string keys. If this is null field will be set to null
-             *  @param name: name of the delegate to assign
-             *  @param field: referenceto a field in this class, to assign the delegate to.
-             *  @throws Exception: thrown if either name isn't pointing to a delegate in delegates or field and the delegate aren't of the same type
-             */
+            /// <summary>Assigns a delegate method to a property.</summary>
             private void AssignMethod<T>(IReadOnlyDictionary<string, Delegate> delegates, string name, ref T field) where T : class
             {
                 if (delegates == null) {
@@ -196,71 +127,149 @@ namespace WeaponCoreScriptTemplate
                     throw new Exception(
                         $"{GetType().Name} :: Delegate {name} is not type {typeof(T)}, instead it's: {del.GetType()}");
             }
+
+            /// <summary>Returns a list of all WeaponCore weapon blocks.</summary>
             public void GetAllCoreWeapons(ICollection<MyDefinitionId> collection) => _getCoreWeapons?.Invoke(collection);
+
+            /// <summary>Returns a list of all fixed weapon blocks (i.e. vanilla Rocket Launcher) registered in WeaponCore.</summary>
             public void GetAllCoreStaticLaunchers(ICollection<MyDefinitionId> collection) =>
                 _getCoreStaticLaunchers?.Invoke(collection);
+
+            /// <summary>Returns a list of all turret blocks registered in WeaponCore.</summary>
             public void GetAllCoreTurrets(ICollection<MyDefinitionId> collection) => _getCoreTurrets?.Invoke(collection);
+
+            /// <summary>Returns a dictionary representing all weapons on the selected block (I think).</summary>
             public bool GetBlockWeaponMap(IMyTerminalBlock weaponBlock, IDictionary<string, int> collection) =>
                 _getBlockWeaponMap?.Invoke(weaponBlock, collection) ?? false;
+
+            /// <summary>Returns if and how many projectiles are locked on to the target entity.</summary>
             public MyTuple<bool, int, int> GetProjectilesLockedOn(long victim) =>
                 _getProjectilesLockedOn?.Invoke(victim) ?? new MyTuple<bool, int, int>();
+
+            /// <summary>Returns a dictionary of detected threats sorted by their offense rating (ranging from 0 to 5).</summary>
             public void GetSortedThreats(IMyTerminalBlock pbBlock, IDictionary<MyDetectedEntityInfo, float> collection) =>
                 _getSortedThreats?.Invoke(pbBlock, collection);
-            public void GetObstructions(Sandbox.ModAPI.Ingame.IMyTerminalBlock pBlock, ICollection<Sandbox.ModAPI.Ingame.MyDetectedEntityInfo> collection) =>
-                _getObstructions?.Invoke(pBlock, collection);
+
+            /// <summary>Returns a collection of 'obstructions' of the grid.</summary>
+            public void GetObstructions(IMyTerminalBlock pbBlock, ICollection<MyDetectedEntityInfo> collection) =>
+                _getObstructions?.Invoke(pbBlock, collection);
+
+            /// <summary>Returns info about the targeted Entity of the shooter grid. This is the target selected via the WeaponCore HUD.</summary>
             public MyDetectedEntityInfo? GetAiFocus(long shooter, int priority = 0) => _getAiFocus?.Invoke(shooter, priority);
+
+            /// <summary>Sets the targeted Entity of the shooter grid. This is the target selected via the WeaponCore HUD.</summary>
             public bool SetAiFocus(IMyTerminalBlock pbBlock, long target, int priority = 0) =>
                 _setAiFocus?.Invoke(pbBlock, target, priority) ?? false;
+
+            /// <summary>Returns info about the Entity targeted by the weapon block.</summary>
             public MyDetectedEntityInfo? GetWeaponTarget(IMyTerminalBlock weapon, int weaponId = 0) =>
                 _getWeaponTarget?.Invoke(weapon, weaponId) ?? null;
+
+            /// <summary>Sets the Entity targeted by the weapon block.</summary>
             public void SetWeaponTarget(IMyTerminalBlock weapon, long target, int weaponId = 0) =>
                 _setWeaponTarget?.Invoke(weapon, target, weaponId);
+
+            /// <summary>Fires the given weapon once. Optionally shoots a specific barrel of the weapon. Might be bugged atm.</summary>
             public void FireWeaponOnce(IMyTerminalBlock weapon, bool allWeapons = true, int weaponId = 0) =>
                 _fireWeaponOnce?.Invoke(weapon, allWeapons, weaponId);
+
+            /// <summary>Sets the firing state of the weapon. Might be bugged atm.</summary>
             public void ToggleWeaponFire(IMyTerminalBlock weapon, bool on, bool allWeapons, int weaponId = 0) =>
                 _toggleWeaponFire?.Invoke(weapon, on, allWeapons, weaponId);
+
+            /// <summary>Returns whether the weapon is ready to fire again. Optionally returns true if a specific barrel is ready.</summary>
             public bool IsWeaponReadyToFire(IMyTerminalBlock weapon, int weaponId = 0, bool anyWeaponReady = true,
                 bool shootReady = false) =>
                 _isWeaponReadyToFire?.Invoke(weapon, weaponId, anyWeaponReady, shootReady) ?? false;
+
+            /// <summary>Returns the maximum range of the selected weapon. Targeting range might be higher than this.</summary>
             public float GetMaxWeaponRange(IMyTerminalBlock weapon, int weaponId) =>
                 _getMaxWeaponRange?.Invoke(weapon, weaponId) ?? 0f;
+
+            /// <summary>Returns the current target types of the selected weapon.</summary>
             public bool GetTurretTargetTypes(IMyTerminalBlock weapon, IList<string> collection, int weaponId = 0) =>
                 _getTurretTargetTypes?.Invoke(weapon, collection, weaponId) ?? false;
+
+            /// <summary>Sets the current target types of the selected weapon.</summary>
             public void SetTurretTargetTypes(IMyTerminalBlock weapon, IList<string> collection, int weaponId = 0) =>
                 _setTurretTargetTypes?.Invoke(weapon, collection, weaponId);
+
+            /// <summary>Sets the tracking range of the selected weapon.</summary>
             public void SetBlockTrackingRange(IMyTerminalBlock weapon, float range) =>
                 _setBlockTrackingRange?.Invoke(weapon, range);
+
+            /// <summary>Returns if the weapon is aligned to shoot the target entity.</summary>
             public bool IsTargetAligned(IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
                 _isTargetAligned?.Invoke(weapon, targetEnt, weaponId) ?? false;
+
+            /// <summary>Returns if the weapon can shoot the target.</summary>
             public bool CanShootTarget(IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
                 _canShootTarget?.Invoke(weapon, targetEnt, weaponId) ?? false;
+
+            /// <summary>Returns the position of the target once the bullet reaches its distance, if the bullet would be fired now.</summary>
             public Vector3D? GetPredictedTargetPosition(IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
                 _getPredictedTargetPos?.Invoke(weapon, targetEnt, weaponId) ?? null;
+
+            /// <summary>Returns the current heat level of the selected weapon.</summary>
             public float GetHeatLevel(IMyTerminalBlock weapon) => _getHeatLevel?.Invoke(weapon) ?? 0f;
+
+            /// <summary>Returns the current power drawn by the selected weapon.</summary>
             public float GetCurrentPower(IMyTerminalBlock weapon) => _currentPowerConsumption?.Invoke(weapon) ?? 0f;
+
+            /// <summary>Returns the maximum power the selected weapon can draw from the grid.</summary>
             public float GetMaxPower(MyDefinitionId weaponDef) => _getMaxPower?.Invoke(weaponDef) ?? 0f;
+
+            /// <summary>Returns if the entity has a WeaponCore grid ai, meaning it has WeaponCore weapons and a.</summary>
             public bool HasGridAi(long entity) => _hasGridAi?.Invoke(entity) ?? false;
+
+            /// <summary>Returns if the block is a WeaponCore weapon.</summary>
             public bool HasCoreWeapon(IMyTerminalBlock weapon) => _hasCoreWeapon?.Invoke(weapon) ?? false;
+
+            /// <summary>Returns the optimal dps for the selected entity.</summary>
             public float GetOptimalDps(long entity) => _getOptimalDps?.Invoke(entity) ?? 0f;
+
+            /// <summary>Returns the name of the current ammo loaded in the selected weapon.</summary>
             public string GetActiveAmmo(IMyTerminalBlock weapon, int weaponId) =>
                 _getActiveAmmo?.Invoke(weapon, weaponId) ?? null;
+
+            /// <summary>Sets the current ammo loaded in the selected weapon based on name.</summary>
             public void SetActiveAmmo(IMyTerminalBlock weapon, int weaponId, string ammoType) =>
                 _setActiveAmmo?.Invoke(weapon, weaponId, ammoType);
-            public void RegisterProjectileAddedCallback(Action<Vector3, float> action) =>
-                _registerProjectileAdded?.Invoke(action);
-            public void UnRegisterProjectileAddedCallback(Action<Vector3, float> action) =>
-                _unRegisterProjectileAdded?.Invoke(action);
+
+            /// <summary>.</summary>
+            /// <param name="action">long Block EntityId, int PartId, ulong ProjectileId, long LastHitId, Vector3D LastPos, bool Start</param>
+            public void MonitorProjectileCallback(IMyTerminalBlock weapon, int weaponId, Action<long, int, ulong, long, Vector3D, bool> action) =>
+                _monitorProjectile?.Invoke(weapon, weaponId, action);
+
+            /// <summary>.</summary>
+            /// <param name="action">long Block EntityId, int PartId, ulong ProjectileId, long LastHitId, Vector3D LastPos, bool Start</param>
+            public void UnMonitorProjectileCallback(IMyTerminalBlock weapon, int weaponId, Action<long, int, ulong, long, Vector3D, bool> action) =>
+                _unMonitorProjectile?.Invoke(weapon, weaponId, action);
+
+            /// <summary>Returns the effective dps of the selected entity.</summary>
             public float GetConstructEffectiveDps(long entity) => _getConstructEffectiveDps?.Invoke(entity) ?? 0f;
+
+            /// <summary>Returns the id of the player controlling the turret.</summary>
             public long GetPlayerController(IMyTerminalBlock weapon) => _getPlayerController?.Invoke(weapon) ?? -1;
-            public Matrix GetWeaponAzimuthMatrix(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, int weaponId) =>
+
+            /// <summary>Returns the orientation matrix of the azimuth part of the selected weapon.</summary>
+            public Matrix GetWeaponAzimuthMatrix(IMyTerminalBlock weapon, int weaponId) =>
                 _getWeaponAzimuthMatrix?.Invoke(weapon, weaponId) ?? Matrix.Zero;
-            public Matrix GetWeaponElevationMatrix(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, int weaponId) =>
+
+            /// <summary>Returns the orientation matrix of the elevation part of the selected weapon.</summary>
+            public Matrix GetWeaponElevationMatrix(IMyTerminalBlock weapon, int weaponId) =>
                 _getWeaponElevationMatrix?.Invoke(weapon, weaponId) ?? Matrix.Zero;
-            public bool IsTargetValid(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, long targetId, bool onlyThreats, bool checkRelations) =>
+
+            /// <summary>Returns whether the target is a valid target for the selected weapon optionally checking for threats and relations.</summary>
+            public bool IsTargetValid(IMyTerminalBlock weapon, long targetId, bool onlyThreats, bool checkRelations) =>
                 _isTargetValid?.Invoke(weapon, targetId, onlyThreats, checkRelations) ?? false;
-            public MyTuple<Vector3D, Vector3D> GetWeaponScope(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, int weaponId) =>
+
+            /// <summary>Returns the scope (?) of the selected weapon.</summary>
+            public MyTuple<Vector3D, Vector3D> GetWeaponScope(IMyTerminalBlock weapon, int weaponId) =>
                 _getWeaponScope?.Invoke(weapon, weaponId) ?? new MyTuple<Vector3D, Vector3D>();
-            public MyTuple<bool, bool> IsInRange(Sandbox.ModAPI.Ingame.IMyTerminalBlock block) =>
+
+            /// <summary>Returns whether a threat or 'other' is in range of the weapon.</summary>
+            public MyTuple<bool, bool> IsInRange(IMyTerminalBlock block) =>
                 _isInRange?.Invoke(block) ?? new MyTuple<bool, bool>();
         }
     }
