@@ -27,6 +27,7 @@ namespace IngameScript
             private Action<IMyTerminalBlock, ICollection<MyDetectedEntityInfo>> _getObstructions;
             private Func<long, int, MyDetectedEntityInfo> _getAiFocus;
             private Func<IMyTerminalBlock, long, int, bool> _setAiFocus;
+            private Func<IMyTerminalBlock, long, bool> _releaseAiFocus;
             private Func<IMyTerminalBlock, int, MyDetectedEntityInfo> _getWeaponTarget;
             private Action<IMyTerminalBlock, long, int> _setWeaponTarget;
             private Action<IMyTerminalBlock, bool, int> _fireWeaponOnce;
@@ -37,6 +38,7 @@ namespace IngameScript
             private Action<IMyTerminalBlock, ICollection<string>, int> _setTurretTargetTypes;
             private Action<IMyTerminalBlock, float> _setBlockTrackingRange;
             private Func<IMyTerminalBlock, long, int, bool> _isTargetAligned;
+            private Func<IMyTerminalBlock, long, int, MyTuple<bool, Vector3D?>> _isTargetAlignedExtended;
             private Func<IMyTerminalBlock, long, int, bool> _canShootTarget;
             private Func<IMyTerminalBlock, long, int, Vector3D?> _getPredictedTargetPos;
             private Func<IMyTerminalBlock, float> _getHeatLevel;
@@ -49,6 +51,7 @@ namespace IngameScript
             private Action<IMyTerminalBlock, int, string> _setActiveAmmo;
             private Action<IMyTerminalBlock, int, Action<long, int, ulong, long, Vector3D, bool>> _monitorProjectile;
             private Action<IMyTerminalBlock, int, Action<long, int, ulong, long, Vector3D, bool>> _unMonitorProjectile;
+            private Func<ulong, MyTuple<Vector3D, Vector3D, float, float, long, string>> _getProjectileState;
             private Func<long, float> _getConstructEffectiveDps;
             private Func<IMyTerminalBlock, long> _getPlayerController;
             private Func<IMyTerminalBlock, int, Matrix> _getWeaponAzimuthMatrix;
@@ -56,6 +59,8 @@ namespace IngameScript
             private Func<IMyTerminalBlock, long, bool, bool, bool> _isTargetValid;
             private Func<IMyTerminalBlock, int, MyTuple<Vector3D, Vector3D>> _getWeaponScope;
             private Func<IMyTerminalBlock, MyTuple<bool, bool>> _isInRange;
+            private Action<IMyTerminalBlock, int, Action<int, bool>> _monitorEvents;
+            private Action<IMyTerminalBlock, int, Action<int, bool>> _unmonitorEvents;
 
             /// <summary>Initializes the API.</summary>
             /// <exception cref="Exception">If the WcPbAPI property added by WeaponCore couldn't be found on the block.</exception>
@@ -80,6 +85,7 @@ namespace IngameScript
                 AssignMethod(delegates, "GetObstructions", ref _getObstructions);
                 AssignMethod(delegates, "GetAiFocus", ref _getAiFocus);
                 AssignMethod(delegates, "SetAiFocus", ref _setAiFocus);
+                AssignMethod(delegates, "ReleaseAiFocus", ref _releaseAiFocus);
                 AssignMethod(delegates, "GetWeaponTarget", ref _getWeaponTarget);
                 AssignMethod(delegates, "SetWeaponTarget", ref _setWeaponTarget);
                 AssignMethod(delegates, "FireWeaponOnce", ref _fireWeaponOnce);
@@ -90,6 +96,7 @@ namespace IngameScript
                 AssignMethod(delegates, "SetTurretTargetTypes", ref _setTurretTargetTypes);
                 AssignMethod(delegates, "SetBlockTrackingRange", ref _setBlockTrackingRange);
                 AssignMethod(delegates, "IsTargetAligned", ref _isTargetAligned);
+                AssignMethod(delegates, "IsTargetAlignedExtended", ref _isTargetAlignedExtended);
                 AssignMethod(delegates, "CanShootTarget", ref _canShootTarget);
                 AssignMethod(delegates, "GetPredictedTargetPosition", ref _getPredictedTargetPos);
                 AssignMethod(delegates, "GetHeatLevel", ref _getHeatLevel);
@@ -102,6 +109,7 @@ namespace IngameScript
                 AssignMethod(delegates, "SetActiveAmmo", ref _setActiveAmmo);
                 AssignMethod(delegates, "MonitorProjectile", ref _monitorProjectile);
                 AssignMethod(delegates, "UnMonitorProjectile", ref _unMonitorProjectile);
+                AssignMethod(delegates, "GetProjectileState", ref _getProjectileState);
                 AssignMethod(delegates, "GetConstructEffectiveDps", ref _getConstructEffectiveDps);
                 AssignMethod(delegates, "GetPlayerController", ref _getPlayerController);
                 AssignMethod(delegates, "GetWeaponAzimuthMatrix", ref _getWeaponAzimuthMatrix);
@@ -109,6 +117,8 @@ namespace IngameScript
                 AssignMethod(delegates, "IsTargetValid", ref _isTargetValid);
                 AssignMethod(delegates, "GetWeaponScope", ref _getWeaponScope);
                 AssignMethod(delegates, "IsInRange", ref _isInRange);
+                AssignMethod(delegates, "RegisterEventMonitor", ref _monitorEvents);
+                AssignMethod(delegates, "UnRegisterEventMonitor", ref _unmonitorEvents);
                 return true;
             }
 
@@ -161,6 +171,10 @@ namespace IngameScript
             public bool SetAiFocus(IMyTerminalBlock pbBlock, long target, int priority = 0) =>
                 _setAiFocus?.Invoke(pbBlock, target, priority) ?? false;
 
+            /// <summary>Clears releases the focus on the targeted Entity of the shooter grid. This is the target selected via the WeaponCore HUD.</summary>
+            public bool ReleaseAiFocus(IMyTerminalBlock pBlock, long playerId) =>
+                _releaseAiFocus?.Invoke(pBlock, playerId) ?? false;
+
             /// <summary>Returns info about the Entity targeted by the weapon block.</summary>
             public MyDetectedEntityInfo? GetWeaponTarget(IMyTerminalBlock weapon, int weaponId = 0) =>
                 _getWeaponTarget?.Invoke(weapon, weaponId) ?? null;
@@ -201,6 +215,11 @@ namespace IngameScript
             /// <summary>Returns if the weapon is aligned to shoot the target entity.</summary>
             public bool IsTargetAligned(IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
                 _isTargetAligned?.Invoke(weapon, targetEnt, weaponId) ?? false;
+
+            /// <summary>Returns if the weapon is aligned to shoot the target entity.</summary>
+            /// <returns>if the target is aligned and if it is it also returns the position of the target, else null</returns>
+            public MyTuple<bool, Vector3D?> IsTargetAlignedExtended(IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
+                _isTargetAlignedExtended?.Invoke(weapon, targetEnt, weaponId) ?? new MyTuple<bool, Vector3D?>();
 
             /// <summary>Returns if the weapon can shoot the target.</summary>
             public bool CanShootTarget(IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
@@ -246,6 +265,9 @@ namespace IngameScript
             public void UnMonitorProjectileCallback(IMyTerminalBlock weapon, int weaponId, Action<long, int, ulong, long, Vector3D, bool> action) =>
                 _unMonitorProjectile?.Invoke(weapon, weaponId, action);
 
+            public MyTuple<Vector3D, Vector3D, float, float, long, string> GetProjectileState(ulong projectileId) =>
+                _getProjectileState?.Invoke(projectileId) ?? new MyTuple<Vector3D, Vector3D, float, float, long, string>();
+
             /// <summary>Returns the effective dps of the selected entity.</summary>
             public float GetConstructEffectiveDps(long entity) => _getConstructEffectiveDps?.Invoke(entity) ?? 0f;
 
@@ -271,6 +293,12 @@ namespace IngameScript
             /// <summary>Returns whether a threat or 'other' is in range of the weapon.</summary>
             public MyTuple<bool, bool> IsInRange(IMyTerminalBlock block) =>
                 _isInRange?.Invoke(block) ?? new MyTuple<bool, bool>();
+
+            public void MonitorEvents(IMyTerminalBlock entity, int partId, Action<int, bool> action) =>
+                _monitorEvents?.Invoke(entity, partId, action);
+
+            public void UnMonitorEvents(IMyTerminalBlock entity, int partId, Action<int, bool> action) =>
+                _unmonitorEvents?.Invoke(entity, partId, action);
         }
     }
 }
