@@ -1,8 +1,19 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.Game.EntityComponents;
+using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
+using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using VRage.Collections;
 using VRage.Game;
+using VRage.Game.Components;
+using VRage.Game.GUI.TextPanel;
+using VRage.Game.ModAPI.Ingame;
+using VRage.Game.ModAPI.Ingame.Utilities;
+using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 
 namespace IngameScript
@@ -19,6 +30,7 @@ namespace IngameScript
         {
             private Action<ICollection<MyDefinitionId>> _getCoreStaticLaunchers;
             private Action<ICollection<MyDefinitionId>> _getCoreTurrets;
+            private Action<IMyTerminalBlock, IDictionary<MyDetectedEntityInfo, float>> _getSortedThreats;
             private Func<long, int, MyDetectedEntityInfo> _getAiFocus;
             private Func<IMyTerminalBlock, int, MyDetectedEntityInfo> _getWeaponTarget;
             private Action<IMyTerminalBlock, bool, int> _fireWeaponOnce;
@@ -48,6 +60,7 @@ namespace IngameScript
                     return false;
                 AssignMethod(delegates, "GetCoreStaticLaunchers", ref _getCoreStaticLaunchers);
                 AssignMethod(delegates, "GetCoreTurrets", ref _getCoreTurrets);
+                AssignMethod(delegates, "GetSortedThreats", ref _getSortedThreats);
                 AssignMethod(delegates, "GetAiFocus", ref _getAiFocus);
                 AssignMethod(delegates, "GetWeaponTarget", ref _getWeaponTarget);
                 AssignMethod(delegates, "FireWeaponOnce", ref _fireWeaponOnce);
@@ -87,6 +100,10 @@ namespace IngameScript
             /// <summary>Returns a list of all turret blocks registered in WeaponCore.</summary>
             public void GetAllCoreTurrets(ICollection<MyDefinitionId> collection) =>
                 _getCoreTurrets?.Invoke(collection);
+
+            /// <summary>Returns a dictionary of detected threats sorted by their offense rating (ranging from 0 to 5).</summary>
+            public void GetSortedThreats(IMyTerminalBlock pbBlock, IDictionary<MyDetectedEntityInfo, float> collection) =>
+                _getSortedThreats?.Invoke(pbBlock, collection);
 
             /// <summary>Returns info about the targeted Entity of the shooter grid. This is the target selected via the WeaponCore HUD.</summary>
             public MyDetectedEntityInfo? GetAiFocus(long shooter, int priority = 0) =>
