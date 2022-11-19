@@ -1,5 +1,19 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.Game.EntityComponents;
+using Sandbox.ModAPI.Ingame;
+using Sandbox.ModAPI.Interfaces;
+using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using VRage.Collections;
+using VRage.Game;
+using VRage.Game.Components;
+using VRage.Game.GUI.TextPanel;
+using VRage.Game.ModAPI.Ingame;
+using VRage.Game.ModAPI.Ingame.Utilities;
+using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 
 namespace IngameScript
@@ -70,6 +84,12 @@ namespace IngameScript
                 bool inv = Rotor != null && Rotor.WorldMatrix.Up != Up || Rotor.BlockDefinition.SubtypeName.Contains("Hinge");
                 int invFac = inv ? -1 : 1;
                 SetRotorSpeedFromOffset(-upperOffset * invFac, 4, maxSpeed);
+            }
+
+            /// <summary>Shortcut for IMyEntity.GetPosition()</summary>
+            public Vector3 GetPosition()
+            {
+                return Weapon.GetPosition();
             }
         }
     }

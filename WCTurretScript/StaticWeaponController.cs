@@ -1,94 +1,46 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.Game.EntityComponents;
+using Sandbox.ModAPI.Ingame;
+using Sandbox.ModAPI.Interfaces;
+using SpaceEngineers.Game.ModAPI.Ingame;
+using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using VRage.Collections;
 using VRage.Game;
+using VRage.Game.Components;
+using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
+using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 
 namespace IngameScript
 {
     partial class Program
     {
-        public class StaticWeaponController
+        /// <summary>Emulates the interface between Vanilla and WeaponCore weapons</summary>
+        public class StaticWeaponController : WeaponController
         {
-            /// <summary>The weapon controlled by this instance.</summary>
-            public IMyTerminalBlock Weapon { get; }
-            /// <summary>Whether or not this instance holds a WC weapon</summary>
-            public bool isWC { get; }
-
-            public IMyCubeGrid CubeGrid { get
-                {
-                    return Weapon.CubeGrid;
-                }
-            }
-
-            public MatrixD WorldMatrix
-            {
-                get
-                {
-                    return Weapon.WorldMatrix;
-                }
-            }
 
             /// <summary>Creates a new controller for the weapon.</summary>
-            public StaticWeaponController(IMyTerminalBlock weapon)
+            public StaticWeaponController(IMyTerminalBlock weapon) : base(weapon)
             {
-                Weapon = weapon;
-                isWC = api.HasCoreWeapon(Weapon);
-            }
-
-            /// <summary>Triggers a single shot.</summary>
-            public void ShootOnce()
-            {
-                if(isWC)
+                if (IsWC)
                 {
-                    api.FireWeaponOnce(Weapon, false);
-                    //api.ToggleWeaponFire(Weapon, true, false);
-                }
-                else
-                {
-                    Weapon.ApplyAction("ShootOnce");
+                    if (!StaticWeaponDefinitionSubIds.Contains(Weapon.BlockDefinition.SubtypeName))
+                    {
+                        throw new Exception("Expected a Static Weapon for Controller");
+                    }
                 }
             }
 
-            public void ToggleShoot(bool on)
-            {
-                if(isWC)
-                {
-                    api.ToggleWeaponFire(Weapon, on, false);
-                }
-                else
-                {
-                    (Weapon as IMyUserControllableGun).Shoot = on;
-                }
-            }
-
-            /// <summary>Checks if the weapon is ready to shoot.</summary>
-            /// <returns>if the weapon is ready to fire (always true for vanilla style weapons)</returns>
-            public bool IsReady()
-            {
-                if(isWC)
-                {
-                    return api.IsWeaponReadyToFire(Weapon, 0, true, true);
-                }
-                return true;
-            }
-
-            public bool CanShootTarget(long targetId)
-            {
-                if(isWC)
-                {
-                    return api.CanShootTarget(Weapon, targetId, 0);
-                }
-                return true;
-            }
-
-            public bool LineOfSightCheck(Vector3 targetpos, IMyCubeGrid parentGrid)
+            public bool LineOfSightCheck(Vector3 TargetPos, IMyCubeGrid parentGrid)
             {
                 Vector3 step = Weapon.WorldMatrix.Forward;
                 Vector3 temp = GetPosition();
-                while ((temp - GetPosition()).Length() < (targetpos - GetPosition()).Length())
+                while ((temp - GetPosition()).Length() < (TargetPos - GetPosition()).Length())
                 {
                     temp += step;
                     if (parentGrid.CubeExists(parentGrid.WorldToGridInteger(temp)))
@@ -99,24 +51,15 @@ namespace IngameScript
                 return true;
             }
 
-            public Vector3 CalculatePredictedTargetPosition(long shooterGridId, Vector3 targetpos)
+            public Vector3 CalculatePredictedTargetPosition(long targetId, Vector3 TargetPos)
             {
-                if (isWC)
+                if (IsWC)
                 {
-                    MyDetectedEntityInfo? info = api.GetAiFocus(shooterGridId);
-                    if (info.HasValue && !info.Value.IsEmpty())
-                    {
-                        var targetposraw = api.GetPredictedTargetPosition(Weapon, info.Value.EntityId, 0);
-                        if (targetposraw != null && targetposraw.HasValue)
-                            return (targetpos + targetposraw.Value) / 2;
-                    }
+                    var targetposraw = Api.GetPredictedTargetPosition(Weapon, targetId, 0);
+                    if (targetposraw != null && targetposraw.HasValue)
+                        return targetposraw.Value;
                 }
-                return targetpos;
-            }
-
-            public Vector3 GetPosition()
-            {
-                return Weapon.GetPosition();
+                return TargetPos;
             }
         }
     }

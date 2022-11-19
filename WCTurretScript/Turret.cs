@@ -1,10 +1,20 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.Game.EntityComponents;
+using Sandbox.ModAPI.Ingame;
+using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using VRageMath;
+using System.Text;
+using VRage.Collections;
+using VRage.Game;
+using VRage.Game.Components;
+using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame;
+using VRage.Game.ModAPI.Ingame.Utilities;
+using VRage.Game.ObjectBuilders.Definitions;
+using VRageMath;
 
 namespace IngameScript
 {
@@ -14,28 +24,27 @@ namespace IngameScript
         public class Turret
         {
             public static List<string> Names = new List<string>();
-            public static List<IMyTerminalBlock> temp = new List<IMyTerminalBlock>();
+            private static List<IMyTerminalBlock> s_helper = new List<IMyTerminalBlock>();
             public string Name;
             public List<RotorController> Elevations = new List<RotorController>();
             public List<StaticWeaponController> StaticWeapons = new List<StaticWeaponController>();
             public RotorController Azimuth;
             public RotorController MainElevation;
-            public IMyTerminalBlock Designator;
+            public TurretWeaponController Designator;
             public IMyTimerBlock Timer;
-            public IMyBlockGroup bGroup;
+            public IMyBlockGroup BlockGroup;
 
-            public List<IMyTerminalBlock> designatorWcCandidates = new List<IMyTerminalBlock>();
-            public List<IMyLargeTurretBase> designatorCandidates = new List<IMyLargeTurretBase>();
+            public bool HasUpdated = false;
+            public double MaxSpeed = 5;
+            public int EngageDist = 1000;
+            public float MaxDiverge = 1.5F;
+            private int _sequenceTimer = 0;
+            private int _offsetTimer = 0;
+            private int _offsetTimerLength = 5;
+            private bool _isResting = false;
+            private bool _shouldInvertRotation = false;
 
-            public bool hasUpdated = false;
-            public double maxSpeed = 5;
-            public int engageDist = 1000;
-            public float maxDiverge = 1.5F;
-            private int sequenceTimer = 0;
-            private int offsetTimer = 0;
-            private int offset = 5;
-            private bool resting = false;
-            private bool invertRot = false;
+            private Vector3D _targetPos = Vector3D.Zero;
 
             public static Turret AttemptCreateFromGroup(IMyBlockGroup blocks)
             {
@@ -58,273 +67,264 @@ namespace IngameScript
 
             public static void AttemptUpdateFromGroup(IMyBlockGroup blocks, string name)
             {
-                Turret oldTurret = turrets.Find(t => t.Name.ToLower().Equals(name.ToLower()));
+                Turret oldTurret = Turrets.Find(t => t.Name.ToLower().Equals(name.ToLower()));
                 oldTurret.UpdateTurret(blocks);
             }
 
             public void UpdateTurret(IMyBlockGroup blocks)
             {
-                temp.Clear();
-                bGroup = blocks;
+                s_helper.Clear();
+                BlockGroup = blocks;
                 if (Azimuth == null)
                 {
-                    blocks.GetBlocksOfType<IMyMotorStator>(temp, b => !b.CustomName.Contains(ElevationNameTag)
+                    blocks.GetBlocksOfType<IMyMotorStator>(s_helper, b => !b.CustomName.Contains(ElevationNameTag)
                         && b.CustomName.Contains(AzimuthNameTag));
-                    if (temp.Count == 0)
+                    if (s_helper.Count == 0)
                         return;
-                    Azimuth = new RotorController((IMyMotorStator)temp[0]);
+                    Azimuth = new RotorController((IMyMotorStator)s_helper[0]);
                 }
 
                 #region INEFFICIENT
                 Elevations.Clear();
-                blocks.GetBlocksOfType<IMyMotorStator>(temp, b => b.CustomName.Contains(ElevationNameTag)
+                blocks.GetBlocksOfType<IMyMotorStator>(s_helper, b => b.CustomName.Contains(ElevationNameTag)
                     && !b.CustomName.Contains(AzimuthNameTag) && b.CubeGrid == Azimuth.Rotor.TopGrid);
-                temp.ForEach(r => Elevations.Add(new RotorController((IMyMotorStator)r)));
+                s_helper.ForEach(r => Elevations.Add(new RotorController((IMyMotorStator)r)));
                 if (Elevations.Count == 0)
                     return;
                 MainElevation = Elevations[0];
                 if (MainElevation.Rotor.CustomName.Contains("#LEFT#"))
-                    invertRot = true;
+                    _shouldInvertRotation = true;
                 foreach (RotorController e in Elevations)
                 {
                     GetElevationBlocks(blocks, e.Rotor);
                 }
                 #endregion
 
-                temp.Clear();
-                blocks.GetBlocksOfType<IMyTerminalBlock>(temp, b => b.CustomName.Contains(DesignatorNameTag));
-                temp.Sort((lhs, rhs) => CompareByDistance(lhs, rhs));
+                s_helper.Clear();
+                blocks.GetBlocksOfType<IMyTerminalBlock>(s_helper, b => b.CustomName.Contains(DesignatorNameTag));
+                s_helper.RemoveAll(d => !d.IsWorking);
+                s_helper.Sort((lhs, rhs) => CompareByDistance(lhs, rhs));
                 IMyTerminalBlock tempDes = null;
-                if (temp.Count != 0)
+                if (s_helper.Count != 0)
                 {
-                    tempDes = temp[0];
-                    if (tempDes != null && (tempDes is IMyLargeTurretBase || api.HasCoreWeapon(tempDes)))
-                        if (tempDes.IsWorking)
-                        {
-                            Designator = tempDes;
-                        }
-                        else
-                        {
-                            GetDesignators();
-                        }
+                    tempDes = s_helper[0];
+                    Designator = new TurretWeaponController(tempDes);
                 }
-                else
-                {
-                    GetDesignators();
-                }
-                temp.Clear();
-                blocks.GetBlocksOfType<IMyTimerBlock>(temp, b => b.CustomName.Contains(TimerNameTag));
-                if (temp.Count != 0)
-                    Timer = (IMyTimerBlock)temp[0];
-                hasUpdated = true;
+                s_helper.Clear();
+                blocks.GetBlocksOfType<IMyTimerBlock>(s_helper, b => b.CustomName.Contains(TimerNameTag));
+                if (s_helper.Count != 0)
+                    Timer = (IMyTimerBlock)s_helper[0];
+                HasUpdated = true;
             }
 
             public void GetElevationBlocks(IMyBlockGroup blocks, IMyMotorStator e)
             {
                 // Inefficient as heck
                 StaticWeapons.Clear();
-                temp.Clear();
-                blocks.GetBlocksOfType<IMyTerminalBlock>(temp, b => definitionSubIds.Contains(b.BlockDefinition.SubtypeName));
-                temp.ForEach(b => StaticWeapons.Add(new StaticWeaponController(b)));
-                temp.Clear();
-                blocks.GetBlocksOfType<IMyUserControllableGun>(temp, b => true);
-                temp.RemoveAll(x => definitionSubIds.Contains(x.BlockDefinition.SubtypeName));
-                temp.ForEach(b => StaticWeapons.Add(new StaticWeaponController(b)));
-            }
-
-            public void GetDesignators()
-            {
-                designatorWcCandidates.Clear();
-                designatorWcCandidates = WC_DIRECTORS.Where(d =>
-                {
-                    MyDetectedEntityInfo? target = api.GetWeaponTarget(d, 0);
-                    if (target != null && target.HasValue && !target.Value.IsEmpty())
-                    {
-                        return ((IMyFunctionalBlock)d).IsWorking && api.IsTargetAligned(d, target.Value.EntityId, 0);
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }).ToList();
-                designatorWcCandidates.Sort((lhs, rhs) => CompareByDistance(lhs, rhs));
-
-                Designator = designatorWcCandidates.Any() ? designatorWcCandidates[0] : null;
-                if (Designator == null)
-                {
-                    designatorCandidates.Clear();
-                    designatorCandidates = DIRECTORS.Where(d =>
-                    {
-                    //Does this also need to be changed?
-                    long? id = d.GetTargetedEntity().EntityId;
-                        if (id != null && id.HasValue)
-                        {
-                            return d.IsWorking;
-                        }
-                        else
-                        {
-                            return false;
-                        }
-                    }).ToList();
-                    designatorCandidates.Sort((lhs, rhs) => CompareByDistance(lhs, rhs));
-                    Designator = designatorCandidates.Any() ? designatorCandidates[0] : null;
-                }
+                s_helper.Clear();
+                blocks.GetBlocksOfType<IMyFunctionalBlock>(s_helper, b => StaticWeaponDefinitionSubIds.Contains(b.BlockDefinition.SubtypeName) && b.CubeGrid == e.TopGrid);
+                s_helper.ForEach(b => StaticWeapons.Add(new StaticWeaponController(b)));
+                s_helper.Clear();
+                blocks.GetBlocksOfType<IMyUserControllableGun>(s_helper, b => b.CubeGrid == e.TopGrid);
+                s_helper.RemoveAll(x => StaticWeaponDefinitionSubIds.Contains(x.BlockDefinition.SubtypeName));
+                s_helper.ForEach(b => StaticWeapons.Add(new StaticWeaponController(b)));
             }
 
             public void ParseTurretIni()
             {
-                maxSpeed = generalIni.Get(Name, maxSpeedKey).ToDouble(maxSpeed);
-                engageDist = generalIni.Get(Name, engageDistKey).ToInt32(engageDist);
-                maxDiverge = generalIni.Get(Name, maxDivergeKey).ToSingle(maxDiverge);
-                offset = generalIni.Get(Name, offsetKey).ToInt32(offset);
-                invertRot = generalIni.Get(Name, invertRotKey).ToBoolean(invertRot);
+                MaxSpeed = ConfigIni.Get(Name, MAX_SPEED_KEY).ToDouble(MaxSpeed);
+                EngageDist = ConfigIni.Get(Name, ENGAGE_DIST_KEY).ToInt32(EngageDist);
+                MaxDiverge = ConfigIni.Get(Name, MAX_DIVERGE_KEY).ToSingle(MaxDiverge);
+                _offsetTimerLength = ConfigIni.Get(Name, OFFSET_KEY).ToInt32(_offsetTimerLength);
+                _shouldInvertRotation = ConfigIni.Get(Name, INVERT_ELEVATION_KEY).ToBoolean(_shouldInvertRotation);
             }
 
             public void WriteTurretIni()
             {
-                generalIni.Set(Name, maxSpeedKey, maxSpeed);
-                generalIni.Set(Name, engageDistKey, engageDist);
-                generalIni.Set(Name, maxDivergeKey, maxDiverge);
-                generalIni.Set(Name, offsetKey, offset);
-                generalIni.Set(Name, invertRotKey, invertRot);
-            }
-
-            /*
-             * Aims at target using WC Grid Ai Focus
-             * @param targetpos: WC Grid Ai Focus Position
-             */
-
-            public void AimAtTarget(Vector3D targetpos)
-            {
-                resting = false;
-                var targetLead = StaticWeapons.Count != 0 ? StaticWeapons[0] : null;
-                if (MainElevation == null || Elevations.Count == 0 || Azimuth == null || targetLead == null)
-                    return;
-                Vector3D middle = targetLead.GetPosition();
-                if (StaticWeapons.Count != 0)
-                {
-                    StaticWeapons.ForEach(w =>
-                    {
-                        //w.ToggleShoot(false);
-                        middle += (w.GetPosition() - middle) / 2;
-                        targetpos = w.CalculatePredictedTargetPosition(Azimuth.Rotor.CubeGrid.EntityId, targetpos);
-                    });
-                }
-                Vector3D targetVec = Vector3D.Normalize(targetpos - middle);
-                double distance = (targetpos - middle).Length();
-                if (distance <= engageDist)
-                {
-                    Vector3D aimVec = targetLead.WorldMatrix.Forward;
-                    Vector3D down = Azimuth.Rotor.WorldMatrix.Down;
-
-                    //Sets Rotor Angles
-                    double armAngle = MathHelper.Clamp(Vector3D.Dot(aimVec, targetVec), -1, 1);
-                    double hemiSphereAngle = Vector3D.Dot(Vector3D.Cross(aimVec, targetVec), down);
-                    double armOffset = (-Math.Acos(armAngle)) * Math.Sign(hemiSphereAngle);
-
-                    double biggestUpperOffset = 0;
-
-                    if (armOffset == double.NaN || double.IsInfinity(armOffset))
-                    {
-                        armOffset = 0;
-                    }
-                    Azimuth.SetRotorSpeedFromOffset(-(float)armOffset, 10, (float)maxSpeed);
-                    if (Elevations.Count != 0)
-                    {
-                        Elevations.ForEach(e =>
-                        {
-                            StaticWeapons.ForEach(w =>
-                            {
-                                if (e != null && w.CubeGrid.Equals(e.Rotor.TopGrid))
-                                    targetLead = w;
-                            });
-                            aimVec = targetLead.WorldMatrix.Forward;
-                            double aimUpperAngle = Math.Acos(Vector3D.Dot(aimVec, -down));
-                            double targetUpperAngle = Math.Acos(Vector3D.Dot(targetVec, -down));
-                            double upperOffset = aimUpperAngle - targetUpperAngle;
-                            if (upperOffset == double.NaN || double.IsInfinity(upperOffset))
-                            {
-                                upperOffset = 0;
-                            }
-                            if (upperOffset > biggestUpperOffset)
-                                biggestUpperOffset = Math.Abs(upperOffset);
-                            int invFac = invertRot ? -1 : 1;
-                            e.RotateElevation((float)upperOffset * invFac, (float)maxSpeed, MainElevation.Rotor.WorldMatrix.Up);
-                        });
-                    }
-                    if (Math.Abs(armOffset) < MathHelper.ToRadians(maxDiverge) && Math.Abs(biggestUpperOffset) < MathHelper.ToRadians(maxDiverge))
-                    {
-                        if (offsetTimer > 0)
-                            offsetTimer--;
-                        if (offsetTimer == 0 && StaticWeapons.Count != 0)
-                        {
-                            StaticWeaponController w = StaticWeapons[sequenceTimer];
-                            MyDetectedEntityInfo? info = api.GetAiFocus(Azimuth.Rotor.CubeGrid.EntityId);
-                            if (!allowWcTarget || (info.HasValue && !info.Value.IsEmpty() && w.CanShootTarget(info.Value.EntityId)))
-                            {
-                                if (w.IsReady() && Timer != null && Timer.IsWorking && !Timer.IsCountingDown)
-                                    Timer.Trigger();
-                                if(!allowLOS || w.LineOfSightCheck(targetpos, Azimuth.Rotor.CubeGrid))
-                                    w.ShootOnce();
-                            };
-                            offsetTimer = offset;
-                            sequenceTimer++;
-                            if (sequenceTimer >= StaticWeapons.Count)
-                                sequenceTimer = 0;
-                        }
-                    }
-                }
+                ConfigIni.Set(Name, MAX_SPEED_KEY, MaxSpeed);
+                ConfigIni.Set(Name, ENGAGE_DIST_KEY, EngageDist);
+                ConfigIni.Set(Name, MAX_DIVERGE_KEY, MaxDiverge);
+                ConfigIni.Set(Name, OFFSET_KEY, _offsetTimerLength);
+                ConfigIni.Set(Name, INVERT_ELEVATION_KEY, _shouldInvertRotation);
             }
 
             public void AimAtTarget()
             {
-                Vector3D targetpos = Vector3D.Zero;
-                bool shouldFire = false;
-                if (!targetOverride && Designator != null)
+                MyDetectedEntityInfo? info = FindTarget();
+                if (info != null && info.HasValue && !info.Value.IsEmpty())
                 {
-                    if (api.HasCoreWeapon(Designator))
+                    MyDetectedEntityInfo target = info.Value;
+                    _targetPos = target.Position;
+                    _isResting = false;
+                    StaticWeaponController targetLead = StaticWeapons.Count != 0 ? StaticWeapons[0] : null;
+                    if (MainElevation == null || Elevations.Count == 0 || Azimuth == null || targetLead == null)
+                        return; // Turret incomplete
+
+                    Vector3D middle = targetLead.GetPosition();
+                    if (StaticWeapons.Count != 0)
                     {
-                        MyDetectedEntityInfo? info = api.GetWeaponTarget(Designator);
-                        if (info.HasValue && !info.Value.IsEmpty())
+                        StaticWeapons.ForEach(w =>
                         {
-                            targetpos = info.Value.Position;
-                            shouldFire = api.CanShootTarget(Designator, info.Value.EntityId, 0);
+                            middle += (w.GetPosition() - middle) / 2;
+                            _targetPos = w.CalculatePredictedTargetPosition(target.EntityId, _targetPos);
+                        });
+                    }
+
+                    Vector3D targetVec = Vector3D.Normalize(_targetPos - middle);
+                    double distance = (_targetPos - middle).Length();
+                    if (distance <= EngageDist)
+                    {
+                        Vector3D aimVec = targetLead.WorldMatrix.Forward;
+                        Vector3D down = Azimuth.Rotor.WorldMatrix.Down;
+
+                        //Sets Rotor Angles
+                        double armAngle = MathHelper.Clamp(Vector3D.Dot(aimVec, targetVec), -1, 1);
+                        double hemiSphereAngle = Vector3D.Dot(Vector3D.Cross(aimVec, targetVec), down);
+                        double armOffset = (-Math.Acos(armAngle)) * Math.Sign(hemiSphereAngle);
+
+                        if (armOffset == double.NaN || double.IsInfinity(armOffset))
+                        {
+                            armOffset = 0;
+                        }
+
+                        Azimuth.SetRotorSpeedFromOffset(-(float)armOffset, 10, (float)MaxSpeed);
+
+                        double biggestUpperOffset = RotateElevators(targetVec);
+
+                        if (IsAimed(armOffset, biggestUpperOffset))
+                        {
+                            FireWeapons(target);
+                        }
+                        return; //Early return if targeting, but not aimed
+                    }
+                }
+                MoveToRest();
+            }
+
+            private bool IsAimed(double armOffset, double biggestUpperOffset)
+            {
+                return Math.Abs(armOffset) < MathHelper.ToRadians(MaxDiverge) && Math.Abs(biggestUpperOffset) < MathHelper.ToRadians(MaxDiverge);
+            }
+
+            private void FireWeapons(MyDetectedEntityInfo target)
+            {
+                if (_offsetTimer > 0)
+                    _offsetTimer--;
+                if (_offsetTimer == 0 && StaticWeapons.Count != 0)
+                {
+                    StaticWeaponController w = StaticWeapons[_sequenceTimer];
+                    if (w.CanShootTarget(target.EntityId))
+                    {
+                        if (w.IsReady() && Timer != null && Timer.IsWorking && !Timer.IsCountingDown)
+                            Timer.Trigger();
+                        if (!AllowLOS || w.LineOfSightCheck(_targetPos, Azimuth.Rotor.CubeGrid))
+                            w.ShootOnce();
+                    };
+                    _offsetTimer = _offsetTimerLength;
+                    _sequenceTimer++;
+                    if (_sequenceTimer >= StaticWeapons.Count)
+                        _sequenceTimer = 0;
+                }
+            }
+
+            private double RotateElevators(Vector3D targetVec)
+            {
+                StaticWeaponController targetLead = StaticWeapons.Count != 0 ? StaticWeapons[0] : null;
+                Vector3D down = Azimuth.Rotor.WorldMatrix.Down;
+                double biggestUpperOffset = 0;
+                if (Elevations.Count != 0)
+                {
+                    Elevations.ForEach(e =>
+                    {
+                        StaticWeapons.ForEach(w =>
+                        {
+                            if (e != null && w.CubeGrid.Equals(e.Rotor.TopGrid))
+                                targetLead = w;
+                        });
+                        Vector3D muzzleVec = targetLead.WorldMatrix.Forward;
+                        double aimUpperAngle = Math.Acos(Vector3D.Dot(muzzleVec, -down));
+                        double targetUpperAngle = Math.Acos(Vector3D.Dot(targetVec, -down));
+                        double upperOffset = aimUpperAngle - targetUpperAngle;
+                        if (upperOffset == double.NaN || double.IsInfinity(upperOffset))
+                        {
+                            upperOffset = 0;
+                        }
+                        if (upperOffset > biggestUpperOffset)
+                            biggestUpperOffset = Math.Abs(upperOffset);
+                        int invFac = _shouldInvertRotation ? -1 : 1;
+                        e.RotateElevation((float)upperOffset * invFac, (float)MaxSpeed, MainElevation.Rotor.WorldMatrix.Up);
+                    });
+                }
+
+                return biggestUpperOffset;
+            }
+
+            private MyDetectedEntityInfo? FindTarget()
+            {
+                if (Designator != null)
+                {
+                    if (Api.HasCoreWeapon(Designator))
+                    {
+                        return Api.GetWeaponTarget(Designator);
+                    }
+                    else if (Designator is IMyLargeTurretBase)
+                    {
+                        return (Designator as IMyLargeTurretBase).GetTargetedEntity();
+                    }
+                }
+                if (AllowWcTargeting)
+                {
+                    MyDetectedEntityInfo? info = Api.GetAiFocus(Azimuth.Rotor.CubeGrid.EntityId);
+                    if (info != null && info.HasValue && !info.Value.IsEmpty() && !(info.Value.TimeStamp < (DateTime.Now.TimeOfDay - new TimeSpan(0, 0, 10)).TotalMilliseconds))
+                        return info;
+                }
+                double highestScore = 0;
+                if (Targets.Count != 0) {
+                    MyDetectedEntityInfo? info = null;
+                    foreach (MyDetectedEntityInfo k in Targets.Keys)
+                    {
+                        if (!k.IsEmpty() && ((int)k.Relationship) == 1)
+                        {
+                            double distance = (k.Position - Azimuth.GetPosition()).Length();
+                            if (distance <= EngageDist)
+                            {
+                                double targetScore = CalculateTargetScore(Targets[k], distance);
+                                if (targetScore > highestScore && StaticWeapons[0].CanShootTarget(k.EntityId))
+                                {
+                                    highestScore = targetScore;
+                                    info = k;
+                                }
+                            }
                         }
                     }
-                    if (Designator is IMyLargeTurretBase && ((IMyLargeTurretBase)Designator).HasTarget)
-                    {
-                        targetpos = ((IMyLargeTurretBase)Designator).GetTargetedEntity().Position;
-                        shouldFire = ((IMyLargeTurretBase)Designator).IsShooting;
-                    }
+                    return info;
                 }
-                else if (Designator == null || !Designator.IsWorking)
-                    GetDesignators();
-                if (Designator == null)
-                    return;
-                if (shouldFire)
-                {
-                    AimAtTarget(targetpos);
-                }
-                else
-                    MoveToRest();
+                return null;
             }
+
+            /// <summary>Calculates the priority score for the given threat and distance</summary>
+            /// <returns>the priority score</returns>
+            private double CalculateTargetScore(float threat, double distance)
+            {
+                return threat * 1000 + (5000 - distance);
+            }
+
 
             public void MoveToRest()
             {
-                //StaticWeapons.ForEach(w => api.ToggleWeaponFire(w.Weapon, false, false));
-                sequenceTimer = 0;
-                offsetTimer = 0;
-                resting = true;
-                Azimuth.MoveToRest((float)maxSpeed);
-                Elevations.ForEach(e => e.MoveToRest((float)maxSpeed));
+                _sequenceTimer = 0;
+                _offsetTimer = 0;
+                _isResting = true;
+                Azimuth.MoveToRest((float)MaxSpeed);
+                Elevations.ForEach(e => e.MoveToRest((float)MaxSpeed));
             }
 
             public void Debug()
             {
-                EchoString.Append("debug for turret group: " + Name + "\n");
-                EchoString.Append("Resting: " + resting + "\n");
-                EchoString.Append("Elevation Reversed: " + invertRot + "\n");
-                EchoString.Append("Engagement Distance: " + engageDist + "\n");
+                EchoString.Append($"Debug for turret group: {Name}\n");
+                EchoString.Append($"Resting: {_isResting}\n");
+                EchoString.Append($"Elevation Reversed: {_shouldInvertRotation}\n");
+                EchoString.Append($"Engagement Distance: {EngageDist}\n");
                 if (Azimuth == null)
                 {
                     EchoString.Append("No AZIMUTH rotor found!\n");
@@ -342,12 +342,12 @@ namespace IngameScript
                     int wc = 0;
                     int v = 0;
                     StaticWeapons.ForEach(w => {
-                        if (w.isWC) 
+                        if (w.IsWC) 
                             wc++;
                         else
                             v++;
                         });
-                    EchoString.Append(wc + " WC weapons\n" + v + " Vanilla Weapons\n");
+                    EchoString.Append($"{wc} WC weapons\n{v} Vanilla Weapons\n");
                 }
                 EchoString.Append("\n");
             }
