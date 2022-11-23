@@ -21,7 +21,7 @@ namespace IngameScript
     public partial class Program : MyGridProgram
     {
 
-        public const string VERSION = "1.18.0";
+        public const string VERSION = "1.18.1";
 
         public const string GENERAL_INI_TAG = "General Config";
         public const string GROUP_NAME_KEY = "Turret Group name tag";
@@ -29,15 +29,18 @@ namespace IngameScript
         public const string AZIMUTH_NAME_KEY = "Azimuth rotor name tag";
         public const string ELEVATION_NAME_KEY = "Elevation rotor name tag";
         public const string TIMER_NAME_KEY = "Fire Timer name tag";
-        public const string WC_TARGET_KEY = "Allow Main Target Tracking (Beta)";
+        public const string WC_TARGET_KEY = "Allow Main Target Tracking";
         public const string LOS_CHECK_KEY = "Allow Line Of Sight Checking (Performance intensive)";
         public const string WAIT_CYCLES_KEY = "Minor Cycles";
+        public const string DEBUG_KEY = "Print Debug";
 
         public const string MAX_SPEED_KEY = "Maximum turning speed";
         public const string ENGAGE_DIST_KEY = "Engagement distance (m)";
         public const string MAX_DIVERGE_KEY = "Maximum divergence from target";
         public const string OFFSET_KEY = "Offset ticks between shots";
         public const string INVERT_ELEVATION_KEY = "Invert Elevation Rotor Rotation";
+        public const string MINIMUM_THREAT_KEY = "Minimum Target Threat Level";
+        public const string STRICT_GRIDS_KEY = "Only allow blocks on rotor grids";
 
         public static string ElevationNameTag = "Elevation";
         public static string AzimuthNameTag = "Azimuth";
@@ -47,6 +50,7 @@ namespace IngameScript
         public static bool AllowWcTargeting = false;
         public static bool AllowLOS = false;
         public static int WaitCycles = 500;
+        public static bool IsDebug = false;
 
         public static WcPbAPI Api = new WcPbAPI();
         public static bool IsApiActivated = false;
@@ -65,11 +69,9 @@ namespace IngameScript
 
 
         public static StringBuilder EchoString = new StringBuilder();
+        public static List<string> ErrorLog = new List<string>();
         public static MyIni ConfigIni = new MyIni();
         public static List<string> IniSections = new List<string>();
-        public Vector3D TargetPos = Vector3D.Zero;
-        public bool IsTargeting = false;
-        public static bool TargetOverride = false;
 
         public int RunCount = WaitCycles;
 
@@ -83,7 +85,7 @@ namespace IngameScript
             RunCount++;
             EchoString.Clear();
 
-            EchoString.Append("Managing " + Turrets.Count + " Turret(s)\n");
+            EchoString.Append($"Managing {Turrets.Count} Turret(s)\n");
 
             if (!IsApiActivated)
             {
@@ -105,21 +107,20 @@ namespace IngameScript
                 }
                 catch
                 {
-                    Echo("WeaponCore Api is failing! \n Make sure WeaponCore is enabled!");
-                    return;
+                    EchoString.Append("WeaponCore Api is failing!\nMake sure WeaponCore is enabled!\n");
                 }
             }
 
-            if (Api.HasGridAi(Me.CubeGrid.EntityId))
+            if (IsApiActivated && Api.HasGridAi(Me.CubeGrid.EntityId))
             {
+                EchoString.Append("Attempting WC Targeting\n");
+                EchoString.Append($"Detected {Targets.Count} target(s)!\n");
+
                 if (RunCount >= WaitCycles)
                 {
                     Targets.Clear();
                     Api.GetSortedThreats(Me, Targets);
-
                 }
-
-                EchoString.Append("Attempting WC Targeting\n");
 
                 Turrets.ForEach(t => t.AimAtTarget());
             }
@@ -127,8 +128,11 @@ namespace IngameScript
             {
                 AttemptVanillaTargeting();
             }
+
             if (RunCount >= WaitCycles)
             {
+                Turrets.ForEach(t => t.HasUpdated = false);
+
                 TurretGroups.Clear();
                 GridTerminalSystem.GetBlockGroups(TurretGroups, g => g.Name.Contains(GroupNameTag));
                 TurretGroups.ForEach(g =>
@@ -138,11 +142,27 @@ namespace IngameScript
                         Turrets.Add(newTurret);
                 });
 
+                // Cleanup stale turrets
+                Turrets.RemoveAll(t => {
+                    if (!t.HasUpdated)
+                    {
+                        Turret.Names.Remove(t.Name);
+                    }
+                    return !t.HasUpdated;
+                });
+
                 ParseIni();
                 RunCount = 0;
             }
-            EchoString.Append("------------------------------------\ndebug area:\n");
-            Turrets.ForEach(t => t.Debug());
+
+            if (IsDebug)
+            {
+                EchoString.Append("------------------------------------\ndebug area:\n");
+                ErrorLog.ForEach(e => EchoString.AppendLine(e));
+                EchoString.AppendLine();
+                Turrets.ForEach(t => t.Debug());
+            }
+
             Echo(EchoString.ToString());
         }
 
@@ -157,7 +177,6 @@ namespace IngameScript
             {
                 RunCount = 0;
             }
-            IsTargeting = false;
             if (Directors.Count != 0)
             {
                 EchoString.Append("Attempting Vanilla Targeting\n");
@@ -180,6 +199,41 @@ namespace IngameScript
             }
         }
 
+        //https://github.com/SilicDev/WeaponCore/blob/master/Data/Scripts/CoreSystems/Ui/Targeting/TargetUiDraw.cs#L966-L976
+        public static int ConvertOffenseRatingToThreatLevel(float offenseRating)
+        {
+            if (offenseRating > 5)      return 9;
+            if (offenseRating > 4)      return 8;
+            if (offenseRating > 3)      return 7;
+            if (offenseRating > 2)      return 6;
+            if (offenseRating > 1)      return 5;
+            if (offenseRating > 0.5)    return 4;
+            if (offenseRating > 0.25)   return 3;
+            if (offenseRating > 0.125)  return 2;
+            if (offenseRating > 0.0625) return 1;
+            if (offenseRating > 0)      return 0;
+            return -1;
+        }
+
+        //https://github.com/SilicDev/WeaponCore/blob/master/Data/Scripts/CoreSystems/Ui/Targeting/TargetUiDraw.cs#L966-L976
+        public static float ConvertThreatLevelToOffenseRating(int threatLevel)
+        {
+            switch(threatLevel)
+            {
+                case 9: return 6;
+                case 8: return 5;
+                case 7: return 4;
+                case 6: return 3;
+                case 5: return 2;
+                case 4: return 1;
+                case 3: return 0.5f;
+                case 2: return 0.25f;
+                case 1: return 0.125f;
+                case 0: return 0.0625f;
+                default: return -1;
+            }
+        }
+
         /// <summary>Parses config data from CustomData.</summary>
         /// relevant docs: https://github.com/malware-dev/MDK-SE/wiki/VRage.Game.ModAPI.Ingame.Utilities.MyIni
         ///      https://github.com/malware-dev/MDK-SE/wiki/Handling-configuration-and-storage
@@ -193,6 +247,8 @@ namespace IngameScript
             ConfigIni.GetSections(IniSections);
             if (IniSections.Count == 0)
                 ConfigIni.EndContent = Me.CustomData;
+            Me.CustomData = "";
+
             GroupNameTag = ConfigIni.Get(GENERAL_INI_TAG, GROUP_NAME_KEY).ToString(GroupNameTag);
             DesignatorNameTag = ConfigIni.Get(GENERAL_INI_TAG, DESIGNATOR_NAME_KEY).ToString(DesignatorNameTag);
             AzimuthNameTag = ConfigIni.Get(GENERAL_INI_TAG, AZIMUTH_NAME_KEY).ToString(AzimuthNameTag);
@@ -201,6 +257,8 @@ namespace IngameScript
             AllowWcTargeting = ConfigIni.Get(GENERAL_INI_TAG, WC_TARGET_KEY).ToBoolean(AllowWcTargeting);
             AllowLOS = ConfigIni.Get(GENERAL_INI_TAG, LOS_CHECK_KEY).ToBoolean(AllowLOS);
             WaitCycles = ConfigIni.Get(GENERAL_INI_TAG, WAIT_CYCLES_KEY).ToInt32(WaitCycles);
+            IsDebug = ConfigIni.Get(GENERAL_INI_TAG, DEBUG_KEY).ToBoolean(IsDebug);
+
             Turrets.ForEach(t => t.ParseTurretIni());
             WriteIni();
         }
@@ -219,6 +277,8 @@ namespace IngameScript
             ConfigIni.Set(GENERAL_INI_TAG, WC_TARGET_KEY, AllowWcTargeting);
             ConfigIni.Set(GENERAL_INI_TAG, LOS_CHECK_KEY, AllowLOS);
             ConfigIni.Set(GENERAL_INI_TAG, WAIT_CYCLES_KEY, WaitCycles);
+            ConfigIni.Set(GENERAL_INI_TAG, DEBUG_KEY, IsDebug);
+
             Turrets.ForEach(t => t.WriteTurretIni());
             string output = ConfigIni.ToString();
             if (!string.Equals(output, Me.CustomData))

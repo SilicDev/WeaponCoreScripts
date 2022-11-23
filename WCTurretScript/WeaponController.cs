@@ -27,35 +27,6 @@ namespace IngameScript
             /// <summary>Whether or not this instance holds a WC weapon</summary>
             public bool IsWC { get; }
 
-            public bool IsShooting
-            {
-                get
-                {
-                    if (IsWC)
-                    {
-                        //undefined, taking best assumption
-                        MyDetectedEntityInfo? info = Api.GetWeaponTarget(Weapon);
-                        return _shoot || (info.HasValue && Api.IsTargetAligned(Weapon, info.Value.EntityId, 0));
-                    }
-                    return (Weapon as IMyUserControllableGun).IsShooting;
-                }
-            }
-
-            /// <summary>Toggle shooting on or off.</summary>
-            public bool Shoot
-            {
-                get
-                {
-                    return IsShootToggleOn();
-                }
-                set
-                {
-                    ToggleShooting(value);
-                }
-            }
-
-            private bool _shoot = false;
-
             /// <summary>Shortcut for IMyCubeBlock.CubeGrid</summary>
             public IMyCubeGrid CubeGrid
             {
@@ -133,13 +104,15 @@ namespace IngameScript
                 return 800.0f; // TODO: parse out of Vanilla data/class. might not be worth it tho
             }
 
-            public bool IsTargetAligned(long targetId, int weaponId = 0)
+            /// <summary>Returns if the grid with the given id is aligned.</summary>
+            /// <returns>if the target aligns</returns>
+            public virtual bool IsTargetAligned(long targetId, int weaponId = 0)
             {
                 if (IsWC)
                 {
                     return Api.IsTargetAligned(Weapon, targetId, weaponId);
                 }
-                return (Weapon as IMyUserControllableGun).IsShooting;
+                return false;
             }
 
             /// <summary>Checks if the weapon can shoot the given target.</summary>
@@ -157,28 +130,6 @@ namespace IngameScript
             public Vector3 GetPosition()
             {
                 return Weapon.GetPosition();
-            }
-
-            private bool IsShootToggleOn()
-            {
-                if (IsWC)
-                {
-                    return _shoot;
-                }
-                return (Weapon as IMyUserControllableGun).Shoot;
-            }
-
-            private void ToggleShooting(bool on)
-            {
-                if (IsWC)
-                {
-                    Api.ToggleWeaponFire(Weapon, on, false);
-                    _shoot = on;
-                }
-                else
-                {
-                    (Weapon as IMyUserControllableGun).Shoot = on;
-                }
             }
         }
     }

@@ -79,6 +79,7 @@ namespace IngameScript
                 Rotor.TargetVelocityRad = MathHelper.Clamp(offset * multiplier, -1 * maxSpeed, maxSpeed);
             }
 
+            /// <summary>Rotates the rotor as Elevation rotor, inverting the direction for hinges and rotors not matching the designated main up vector.</summary>
             public void RotateElevation(float upperOffset, float maxSpeed, Vector3D Up)
             {
                 bool inv = Rotor != null && Rotor.WorldMatrix.Up != Up || Rotor.BlockDefinition.SubtypeName.Contains("Hinge");
@@ -89,7 +90,7 @@ namespace IngameScript
             /// <summary>Shortcut for IMyEntity.GetPosition()</summary>
             public Vector3 GetPosition()
             {
-                return Weapon.GetPosition();
+                return Rotor.GetPosition();
             }
         }
     }

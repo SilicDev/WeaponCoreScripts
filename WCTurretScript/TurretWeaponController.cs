@@ -33,8 +33,6 @@ namespace IngameScript
                 }
             }
 
-            private readonly List<string> _types = new List<string>();
-
             ///<summary>Creates a new controller for the weapon.</summary>
             public TurretWeaponController(IMyTerminalBlock weapon) : base(weapon)
             {
@@ -72,6 +70,17 @@ namespace IngameScript
                     return Api.GetMaxWeaponRange(Weapon, weaponId);
                 }
                 return (Weapon as IMyLargeTurretBase).Range; // TODO: parse out of Vanilla data/class. might not be worth it tho
+            }
+
+            /// <summary>Returns if the grid with the given id is aligned.</summary>
+            /// <returns>if the target aligns, or if a vanilla weapon is shooting</returns>
+            public override bool IsTargetAligned(long targetId, int weaponId = 0)
+            {
+                if (IsWC)
+                {
+                    return Api.IsTargetAligned(Weapon, targetId, weaponId);
+                }
+                return (Weapon as IMyLargeTurretBase).IsShooting; // Best estimate
             }
         }
     }

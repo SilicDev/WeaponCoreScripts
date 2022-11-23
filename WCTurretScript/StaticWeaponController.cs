@@ -36,6 +36,8 @@ namespace IngameScript
                 }
             }
 
+            /// <summary>Determines if a block of the main grid blocks the weapon.</summary>
+            /// <returns>true if no block is in the way, false otherwise</returns>
             public bool LineOfSightCheck(Vector3 TargetPos, IMyCubeGrid parentGrid)
             {
                 Vector3 step = Weapon.WorldMatrix.Forward;
@@ -51,6 +53,9 @@ namespace IngameScript
                 return true;
             }
 
+            /// <summary>Calculates the position the target will be at when the projectile of the weapon reaches its distance.</summary>
+            /// Not implemented for Vanilla
+            /// <returns>The updated targetpos</returns>
             public Vector3 CalculatePredictedTargetPosition(long targetId, Vector3 TargetPos)
             {
                 if (IsWC)
