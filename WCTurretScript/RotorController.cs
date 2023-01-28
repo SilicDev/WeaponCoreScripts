@@ -99,53 +99,56 @@ namespace IngameScript
             }
 
             #region MATH_HELL
-            public bool IsPointInAzimuthRange(Vector3D point, Vector3D restAimVec)
+            public bool IsPointInAzimuthRange(Vector3D point)
             {
                 var upLimit = Rotor.UpperLimitDeg;
                 var lowLimit = Rotor.LowerLimitDeg;
-                var angle = GetAzimuthAngleTo(point, restAimVec);
+                var angle = GetAzimuthAngleTo(point);
                 return angle <= upLimit && angle >= lowLimit;
             }
 
-            public float GetAzimuthAngleTo(Vector3D point, Vector3D restAimVec)
+            public float GetAzimuthAngleTo(Vector3D point)
             {
-                var forward = restAimVec;
+                var forward = Rotor.WorldMatrix.Backward; // Don't question it
                 var up = Rotor.WorldMatrix.Up;
-                if ((up - forward).Length() < 0.01)
+                if (Rotor.BlockDefinition.SubtypeId.Contains("Hinge"))
                 {
-                    forward = Vector3D.Cross(up, Rotor.Top.WorldMatrix.Right);
+                    up = Rotor.WorldMatrix.Down;
+                    forward = Rotor.WorldMatrix.Left;
                 }
                 var targetVec = point - GetPosition();
                 var planeVec = Vector3D.ProjectOnPlane(ref targetVec, ref up);
                return MathHelper.ToDegrees(MyMath.AngleBetween(forward, planeVec));
             }
 
-            public MatrixD GetAzimuthRotationMatrixTo(Vector3D point, Vector3D restAimVec)
+            public MatrixD GetAzimuthRotationMatrixTo(Vector3D point)
             {
-                var angle = GetAzimuthAngleTo(point, restAimVec);
-                return MatrixD.CreateFromAxisAngle(Rotor.WorldMatrix.Up, MathHelper.ToRadians(angle) - Rotor.Angle);
+                var angle = GetAzimuthAngleTo(point);
+                return MatrixD.CreateFromAxisAngle(Rotor.WorldMatrix.Up, angle);
             }
 
-            public bool IsPointInElevationRange(Vector3D point, MatrixD azimuthRotation, Vector3D aimVec, Vector3D up)
+            public bool IsPointInElevationRange(Vector3D point, MatrixD azimuthRotation)
             {
                 var upLimit = Rotor.UpperLimitDeg;
                 var lowLimit = Rotor.LowerLimitDeg;
-                var angle = GetElevationAngleTo(point, azimuthRotation, aimVec, up);
+                var angle = GetElevationAngleTo(point, azimuthRotation);
                 return angle <= upLimit && angle >= lowLimit;
             }
 
-            public float GetElevationAngleTo(Vector3D point, MatrixD azimuthRotation, Vector3D aimVec, Vector3D up)
+            public float GetElevationAngleTo(Vector3D point, MatrixD azimuthRotation)
             {
                 var matrix = Rotor.WorldMatrix;
-                Vector3D.RotateAndScale(ref aimVec, ref azimuthRotation, out aimVec);
-                if ((up - aimVec).Length() < 0.01)
+                var newMatrix = MatrixD.Multiply(azimuthRotation, matrix);
+                var forward = newMatrix.Backward;
+                var up = newMatrix.Up;
+                if (Rotor.BlockDefinition.SubtypeId.Contains("Hinge"))
                 {
-                    aimVec = Vector3D.Cross(up, Rotor.WorldMatrix.Up);
-                    Vector3D.RotateAndScale(ref aimVec, ref azimuthRotation, out aimVec);
+                    up = newMatrix.Down;
+                    forward = newMatrix.Left;
                 }
                 var targetVec = point - GetPosition();
                 var planeVec = Vector3D.ProjectOnPlane(ref targetVec, ref up);
-                return MathHelper.ToDegrees(MyMath.AngleBetween(up, planeVec));
+                return MathHelper.ToDegrees(MyMath.AngleBetween(forward, planeVec));
             }
             #endregion
         }

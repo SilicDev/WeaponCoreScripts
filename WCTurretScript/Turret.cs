@@ -49,7 +49,6 @@ namespace IngameScript
             private bool _shouldInvertRotation = false;
             private float _minimumOffenseRating = 1.0001f;
             private bool _strictGridTesting = true;
-            private Vector3 _restAimVec = Vector3D.Forward;
 
             private Vector3D _targetPos = Vector3D.Zero;
 
@@ -350,16 +349,11 @@ namespace IngameScript
                     {
                         if (!k.IsEmpty() && IsValidTarget(k, Targets[k]))
                         {
-                            if (!Azimuth.IsPointInAzimuthRange(k.Position, _restAimVec))
+                            if (!Azimuth.IsPointInAzimuthRange(k.Position))
                             {
                                 continue;
                             }
-                            if (!MainElevation.IsPointInElevationRange(
-                                    k.Position, 
-                                    Azimuth.GetAzimuthRotationMatrixTo(k.Position, _restAimVec), 
-                                    StaticWeapons[0].WorldMatrix.Forward, 
-                                    MainElevation.Rotor.WorldMatrix.Up)
-                            )
+                            if (!MainElevation.IsPointInElevationRange(k.Position, Azimuth.GetAzimuthRotationMatrixTo(k.Position)))
                             {
                                 continue;
                             }
@@ -404,7 +398,6 @@ namespace IngameScript
                 _offsetTimer = 0;
                 _isResting = true;
                 _isAimed = false;
-                _restAimVec = StaticWeapons[0].WorldMatrix.Forward;
                 if (!IsWorking())
                 {
                     return; // Early return if broken
