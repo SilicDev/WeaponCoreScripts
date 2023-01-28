@@ -21,7 +21,7 @@ namespace IngameScript
     public partial class Program : MyGridProgram
     {
 
-        public const string VERSION = "1.18.1";
+        public const string VERSION = "1.18.2";
 
         public const string GENERAL_INI_TAG = "General Config";
         public const string GROUP_NAME_KEY = "Turret Group name tag";
@@ -41,6 +41,10 @@ namespace IngameScript
         public const string INVERT_ELEVATION_KEY = "Invert Elevation Rotor Rotation";
         public const string MINIMUM_THREAT_KEY = "Minimum Target Threat Level";
         public const string STRICT_GRIDS_KEY = "Only allow blocks on rotor grids";
+
+        public const string WHIP_REST_ANGLE_TAG = "Turret Slaver - Rotor Config";
+        public const string WHIP_HAS_REST_KEY = "Use manual rest angle";
+        public const string WHIP_REST_ANGLE_KEY = "Manual rest angle(deg)";
 
         public static string ElevationNameTag = "Elevation";
         public static string AzimuthNameTag = "Azimuth";
@@ -131,8 +135,6 @@ namespace IngameScript
 
             if (RunCount >= WaitCycles)
             {
-                Turrets.ForEach(t => t.HasUpdated = false);
-
                 TurretGroups.Clear();
                 GridTerminalSystem.GetBlockGroups(TurretGroups, g => g.Name.Contains(GroupNameTag));
                 TurretGroups.ForEach(g =>
@@ -140,15 +142,6 @@ namespace IngameScript
                     Turret newTurret = Turret.AttemptCreateFromGroup(g);
                     if (newTurret != null)
                         Turrets.Add(newTurret);
-                });
-
-                // Cleanup stale turrets
-                Turrets.RemoveAll(t => {
-                    if (!t.HasUpdated)
-                    {
-                        Turret.Names.Remove(t.Name);
-                    }
-                    return !t.HasUpdated;
                 });
 
                 ParseIni();
@@ -202,16 +195,16 @@ namespace IngameScript
         //https://github.com/SilicDev/WeaponCore/blob/master/Data/Scripts/CoreSystems/Ui/Targeting/TargetUiDraw.cs#L966-L976
         public static int ConvertOffenseRatingToThreatLevel(float offenseRating)
         {
-            if (offenseRating > 5)      return 9;
-            if (offenseRating > 4)      return 8;
-            if (offenseRating > 3)      return 7;
-            if (offenseRating > 2)      return 6;
-            if (offenseRating > 1)      return 5;
-            if (offenseRating > 0.5)    return 4;
-            if (offenseRating > 0.25)   return 3;
-            if (offenseRating > 0.125)  return 2;
-            if (offenseRating > 0.0625) return 1;
-            if (offenseRating > 0)      return 0;
+            if (offenseRating >= 5)      return 9;
+            if (offenseRating >= 4)      return 8;
+            if (offenseRating >= 3)      return 7;
+            if (offenseRating >= 2)      return 6;
+            if (offenseRating >= 1)      return 5;
+            if (offenseRating >= 0.5f)    return 4;
+            if (offenseRating >= 0.25f)   return 3;
+            if (offenseRating >= 0.125f)  return 2;
+            if (offenseRating >= 0.0625f) return 1;
+            if (offenseRating >= 0)      return 0;
             return -1;
         }
 
@@ -220,16 +213,16 @@ namespace IngameScript
         {
             switch(threatLevel)
             {
-                case 9: return 6;
-                case 8: return 5;
-                case 7: return 4;
-                case 6: return 3;
-                case 5: return 2;
-                case 4: return 1;
-                case 3: return 0.5f;
-                case 2: return 0.25f;
-                case 1: return 0.125f;
-                case 0: return 0.0625f;
+                case 9: return 5;
+                case 8: return 4;
+                case 7: return 3;
+                case 6: return 2;
+                case 5: return 1;
+                case 4: return 0.5f;
+                case 3: return 0.25f;
+                case 2: return 0.125f;
+                case 1: return 0.0625f;
+                case 0: return 0f;
                 default: return -1;
             }
         }

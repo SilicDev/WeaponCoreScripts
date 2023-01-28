@@ -38,7 +38,6 @@ namespace IngameScript
             public IMyBlockGroup BlockGroup;
 
             //vars
-            public bool HasUpdated = false;
             public float MaxSpeed = 5;
             public int EngageDist = 1000;
             public float MaxDiverge = 1.5F;
@@ -50,6 +49,7 @@ namespace IngameScript
             private bool _shouldInvertRotation = false;
             private float _minimumOffenseRating = 1.0001f;
             private bool _strictGridTesting = true;
+            private Vector3 _restAimVec = Vector3D.Forward;
 
             private Vector3D _targetPos = Vector3D.Zero;
 
@@ -100,7 +100,7 @@ namespace IngameScript
 
                 blocks.GetBlocksOfType<IMyMotorStator>(s_helper, b => b.CustomName.Contains(ElevationNameTag)
                     && !b.CustomName.Contains(AzimuthNameTag)
-                    && (!_strictGridTesting || b.CubeGrid == Azimuth.Rotor.TopGrid));
+                    && (!Turrets.Contains(this) || !_strictGridTesting || b.CubeGrid == Azimuth.Rotor.TopGrid));
 
                 s_helper.ForEach(r => Elevations.Add(new RotorController((IMyMotorStator)r)));
                 if (Elevations.Count == 0)
@@ -111,7 +111,7 @@ namespace IngameScript
                     _shouldInvertRotation = true;
 
                 StaticWeapons.Clear();
-                if (_strictGridTesting)
+                if (_strictGridTesting && Turrets.Contains(this))
                 {
                     foreach (RotorController e in Elevations)
                     {
@@ -137,7 +137,6 @@ namespace IngameScript
                 blocks.GetBlocksOfType<IMyTimerBlock>(s_helper, b => b.CustomName.Contains(TimerNameTag));
                 if (s_helper.Count != 0)
                     Timer = (IMyTimerBlock)s_helper[0];
-                HasUpdated = true;
             }
 
             /// <summary>Collects the Weapons for the turret to use</summary>
@@ -336,11 +335,13 @@ namespace IngameScript
                         return (Designator as IMyLargeTurretBase).GetTargetedEntity();
                     }
                 }
+                MyDetectedEntityInfo? ai_focus = null;
+                bool has_focus = false;
                 if (AllowWcTargeting)
                 {
-                    MyDetectedEntityInfo? info = Api.GetAiFocus(Azimuth.Rotor.CubeGrid.EntityId);
-                    if (info.HasValue && !info.Value.IsEmpty() && !(info.Value.TimeStamp < (DateTime.Now.TimeOfDay - new TimeSpan(0, 0, 10)).TotalMilliseconds))
-                        return info;
+                    ai_focus = Api.GetAiFocus(Azimuth.Rotor.CubeGrid.EntityId);
+                    if (ai_focus.HasValue && !ai_focus.Value.IsEmpty() && !(ai_focus.Value.TimeStamp < (DateTime.Now.TimeOfDay - new TimeSpan(0, 0, 10)).TotalMilliseconds))
+                        has_focus = true;
                 }
                 double highestScore = -1;
                 if (Targets.Count != 0) {
@@ -349,11 +350,26 @@ namespace IngameScript
                     {
                         if (!k.IsEmpty() && IsValidTarget(k, Targets[k]))
                         {
-                            float distance = (float)(k.Position - Azimuth.GetPosition()).Length();
-                            if (distance <= EngageDist)
+                            if (!Azimuth.IsPointInAzimuthRange(k.Position, _restAimVec))
+                            {
+                                continue;
+                            }
+                            if (!MainElevation.IsPointInElevationRange(
+                                    k.Position, 
+                                    Azimuth.GetAzimuthRotationMatrixTo(k.Position, _restAimVec), 
+                                    StaticWeapons[0].WorldMatrix.Forward, 
+                                    MainElevation.Rotor.WorldMatrix.Up)
+                            )
+                            {
+                                continue;
+                            }
+                            Vector3 distance = (k.Position - Azimuth.GetPosition());
+                            if (distance.Length() <= EngageDist)
                             {
                                 double targetScore = CalculateTargetScore(Targets[k], distance);
-                                if (targetScore > highestScore && StaticWeapons[0].CanShootTarget(k.EntityId))
+                                if (has_focus && k.EntityId == ai_focus.Value.EntityId)
+                                    targetScore += 5000;
+                                if (targetScore > highestScore /*&& StaticWeapons[0].CanShootTarget(k.EntityId)*/) // broke somehow, not vital to the script tho
                                 {
                                     highestScore = targetScore;
                                     info = k;
@@ -368,9 +384,9 @@ namespace IngameScript
 
             /// <summary>Calculates the priority score for the given threat and distance</summary>
             /// <returns>the priority score</returns>
-            private double CalculateTargetScore(float threat, float distance)
+            private double CalculateTargetScore(float threat, Vector3D distance)
             {
-                return threat * 1000 + MyMath.Clamp(5000 - distance, 0, 5000);
+                return threat * 1000 + MyMath.Clamp(5000 - (float)distance.Length(), 0, 5000);
             }
 
             /// <summary>Determines if a given target matches the config parameters for this turret</summary>
@@ -388,6 +404,7 @@ namespace IngameScript
                 _offsetTimer = 0;
                 _isResting = true;
                 _isAimed = false;
+                _restAimVec = StaticWeapons[0].WorldMatrix.Forward;
                 if (!IsWorking())
                 {
                     return; // Early return if broken
@@ -427,7 +444,7 @@ namespace IngameScript
                 EchoString.Append($"Is Aimed: {_isAimed}\n");
                 EchoString.Append($"Elevation Reversed: {_shouldInvertRotation}\n");
                 EchoString.Append($"Engagement Distance: {EngageDist}\n");
-                EchoString.Append($"Minimum Target Threat Level: {ConvertOffenseRatingToThreatLevel(_minimumOffenseRating)}\n");
+                EchoString.Append($"Minimum Target Threat Level: {ConvertOffenseRatingToThreatLevel(_minimumOffenseRating)}({_minimumOffenseRating})\n");
                 int wc = 0;
                 int v = 0;
                 StaticWeapons.ForEach(w => {
@@ -437,46 +454,12 @@ namespace IngameScript
                         v++;
                     });
                 EchoString.Append($"{wc} WC weapons\n{v} Vanilla Weapons\n");
+                EchoString.Append($"Has Designator: {Designator != null}\n");
                 EchoString.AppendLine();
             }
 
             private int CompareByDistanceToAzimuth(IMyCubeBlock lhs, IMyCubeBlock rhs) =>
                     (lhs.Position - Azimuth.Rotor.Position).Length() - (rhs.Position - Azimuth.Rotor.Position).Length();
-
-            //https://github.com/SilicDev/WeaponCore/blob/master/Data/Scripts/CoreSystems/Ui/Targeting/TargetUiDraw.cs#L966-L976
-            private int ConvertOffenseRatingToThreatLevel(float offenseRating)
-            {
-                if (offenseRating > 5) return 9;
-                if (offenseRating > 4) return 8;
-                if (offenseRating > 3) return 7;
-                if (offenseRating > 2) return 6;
-                if (offenseRating > 1) return 5;
-                if (offenseRating > 0.5) return 4;
-                if (offenseRating > 0.25) return 3;
-                if (offenseRating > 0.125) return 2;
-                if (offenseRating > 0.0625) return 1;
-                if (offenseRating > 0) return 0;
-                return -1;
-            }
-
-            //https://github.com/SilicDev/WeaponCore/blob/master/Data/Scripts/CoreSystems/Ui/Targeting/TargetUiDraw.cs#L966-L976
-            private float ConvertThreatLevelToOffenseRating(int threatLevel)
-            {
-                switch (threatLevel)
-                {
-                    case 9: return 6;
-                    case 8: return 5;
-                    case 7: return 4;
-                    case 6: return 3;
-                    case 5: return 2;
-                    case 4: return 1;
-                    case 3: return 0.5f;
-                    case 2: return 0.25f;
-                    case 1: return 0.125f;
-                    case 0: return 0.0625f;
-                    default: return -1;
-                }
-            }
         }
     }
 }

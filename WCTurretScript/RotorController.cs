@@ -39,7 +39,12 @@ namespace IngameScript
                 try
                 {
                     pos = Convert.ToInt32(Rotor.CustomData);
-                } catch {}
+                } catch
+                {
+                    var has_rest = ConfigIni.Get(WHIP_REST_ANGLE_TAG, WHIP_HAS_REST_KEY).ToBoolean();
+                    if (has_rest)
+                        pos = ConfigIni.Get(WHIP_REST_ANGLE_TAG, WHIP_REST_ANGLE_KEY).ToInt16();
+                }
 
                 if (Math.Abs(MathHelper.ToRadians(pos) - Rotor.Angle) < 0.01)
                 {
@@ -92,6 +97,57 @@ namespace IngameScript
             {
                 return Rotor.GetPosition();
             }
+
+            #region MATH_HELL
+            public bool IsPointInAzimuthRange(Vector3D point, Vector3D restAimVec)
+            {
+                var upLimit = Rotor.UpperLimitDeg;
+                var lowLimit = Rotor.LowerLimitDeg;
+                var angle = GetAzimuthAngleTo(point, restAimVec);
+                return angle <= upLimit && angle >= lowLimit;
+            }
+
+            public float GetAzimuthAngleTo(Vector3D point, Vector3D restAimVec)
+            {
+                var forward = restAimVec;
+                var up = Rotor.WorldMatrix.Up;
+                if ((up - forward).Length() < 0.01)
+                {
+                    forward = Vector3D.Cross(up, Rotor.Top.WorldMatrix.Right);
+                }
+                var targetVec = point - GetPosition();
+                var planeVec = Vector3D.ProjectOnPlane(ref targetVec, ref up);
+               return MathHelper.ToDegrees(MyMath.AngleBetween(forward, planeVec));
+            }
+
+            public MatrixD GetAzimuthRotationMatrixTo(Vector3D point, Vector3D restAimVec)
+            {
+                var angle = GetAzimuthAngleTo(point, restAimVec);
+                return MatrixD.CreateFromAxisAngle(Rotor.WorldMatrix.Up, MathHelper.ToRadians(angle) - Rotor.Angle);
+            }
+
+            public bool IsPointInElevationRange(Vector3D point, MatrixD azimuthRotation, Vector3D aimVec, Vector3D up)
+            {
+                var upLimit = Rotor.UpperLimitDeg;
+                var lowLimit = Rotor.LowerLimitDeg;
+                var angle = GetElevationAngleTo(point, azimuthRotation, aimVec, up);
+                return angle <= upLimit && angle >= lowLimit;
+            }
+
+            public float GetElevationAngleTo(Vector3D point, MatrixD azimuthRotation, Vector3D aimVec, Vector3D up)
+            {
+                var matrix = Rotor.WorldMatrix;
+                Vector3D.RotateAndScale(ref aimVec, ref azimuthRotation, out aimVec);
+                if ((up - aimVec).Length() < 0.01)
+                {
+                    aimVec = Vector3D.Cross(up, Rotor.WorldMatrix.Up);
+                    Vector3D.RotateAndScale(ref aimVec, ref azimuthRotation, out aimVec);
+                }
+                var targetVec = point - GetPosition();
+                var planeVec = Vector3D.ProjectOnPlane(ref targetVec, ref up);
+                return MathHelper.ToDegrees(MyMath.AngleBetween(up, planeVec));
+            }
+            #endregion
         }
     }
 }
